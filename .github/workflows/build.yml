@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,12 +22,26 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.7'
           channel: 'stable'
           cache: true
 
       - name: Get dependencies
         run: flutter pub get
+
+      - name: Configure Gradle memory
+        run: |
+          cd android
+          echo "" >> gradle.properties
+          echo "# CI memory tuning" >> gradle.properties
+          echo "org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=2G -XX:ReservedCodeCacheSize=512m" >> gradle.properties
+          echo "org.gradle.parallel=true" >> gradle.properties
+          echo "org.gradle.workers.max=2" >> gradle.properties
+          echo "org.gradle.daemon=false" >> gradle.properties
+          echo "kotlin.compiler.execution.strategy=in-process" >> gradle.properties
+          echo "kotlin.incremental=false" >> gradle.properties
+          echo "" >> gradle.properties
+          echo "=== Final gradle.properties ==="
+          cat gradle.properties
 
       - name: Build APK
         run: flutter build apk --debug --target-platform android-arm64
