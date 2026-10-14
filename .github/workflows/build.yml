@@ -50,9 +50,17 @@ jobs:
       - name: Build APK (debug, arm64)
         run: flutter build apk --debug --target-platform android-arm64
 
+      - name: Cari APK
+        if: always()
+        run: find . -name "*.apk" -not -path "./.git/*"
+
       - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: tari-app-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: tari-debug-apk
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: warn
           retention-days: 30
