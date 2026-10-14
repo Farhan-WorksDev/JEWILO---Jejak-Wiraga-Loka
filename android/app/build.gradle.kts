@@ -39,25 +39,22 @@ kotlin {
 }
 
 dependencies {
-    // MediaPipe Tasks Vision — pake versi stable (0.10.14)
-    // Versi 0.10.29 ada bug protobuf conflict di beberapa device
+    // MediaPipe — pake versi stabil yang gak konflik protobuf
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
-    
-    // Force protobuf version yang kompatibel
+
+    // Force protobuf ke versi kompatibel (javalite, bukan java)
     implementation("com.google.protobuf:protobuf-javalite:3.21.12")
-    implementation("com.google.protobuf:protobuf-kotlin-lite:3.21.12")
-    
-    // Core library desugaring
+
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
-// Force semua versi protobuf ke satu versi (fix NoSuchMethodError)
+// Force ALL protobuf variants ke satu versi — fix NoSuchMethodError
 configurations.all {
     resolutionStrategy {
         force("com.google.protobuf:protobuf-java:3.21.12")
         force("com.google.protobuf:protobuf-javalite:3.21.12")
-        force("com.google.protobuf:protobuf-kotlin-lite:3.21.12")
         force("com.google.protobuf:protobuf-kotlin:3.21.12")
+        force("com.google.protobuf:protobuf-kotlin-lite:3.21.12")
     }
 }
 
