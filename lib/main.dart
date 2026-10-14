@@ -1,6 +1,5 @@
 ﻿import 'package:flutter/material.dart';
 
-import 'ai/ai_service.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/shell.dart';
 import 'ui/screens/splash_screen.dart';
@@ -13,8 +12,8 @@ Future<void> main() async {
   await AppState.instance.load();
   // ignore: discarded_futures
   ReminderService.instance.init();
-  // ignore: discarded_futures
-  AiService.instance.initialize();
+  // Kamera + AI TIDAK dinyalakan di sini lagi. Dinyalakan hanya saat masuk
+  // layar latihan (PracticeScreen) dan dimatikan saat keluar.
 
   runApp(const TariApp());
 }
