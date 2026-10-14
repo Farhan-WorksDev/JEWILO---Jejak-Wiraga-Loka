@@ -7,7 +7,7 @@
 android {
     namespace = "com.example.tari_app"
     compileSdk = 36
-    ndkVersion = "30.0.16248370"
+    ndkVersion = flutter.ndkVersion
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -27,6 +27,8 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

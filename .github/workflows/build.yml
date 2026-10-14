@@ -28,22 +28,26 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Configure Gradle memory
+      - name: Configure Gradle memory (CI-tuned)
         run: |
           cd android
-          echo "" >> gradle.properties
-          echo "# CI memory tuning" >> gradle.properties
-          echo "org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=2G -XX:ReservedCodeCacheSize=512m" >> gradle.properties
-          echo "org.gradle.parallel=true" >> gradle.properties
-          echo "org.gradle.workers.max=2" >> gradle.properties
-          echo "org.gradle.daemon=false" >> gradle.properties
-          echo "kotlin.compiler.execution.strategy=in-process" >> gradle.properties
-          echo "kotlin.incremental=false" >> gradle.properties
-          echo "" >> gradle.properties
-          echo "=== Final gradle.properties ==="
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=1G -XX:ReservedCodeCacheSize=512m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.enableJetifier=false
+          android.newDsl=false
+          android.builtInKotlin=false
+          org.gradle.parallel=false
+          org.gradle.daemon=false
+          org.gradle.caching=false
+          org.gradle.vfs.watch=false
+          kotlin.incremental=false
+          kotlin.compiler.execution.strategy=in-process
+          EOF
+          echo "=== gradle.properties ==="
           cat gradle.properties
 
-      - name: Build APK
+      - name: Build APK (debug, arm64)
         run: flutter build apk --debug --target-platform android-arm64
 
       - name: Upload APK
