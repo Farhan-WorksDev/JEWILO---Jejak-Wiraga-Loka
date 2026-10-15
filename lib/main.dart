@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
+import 'ui/no_stretch_scroll_behavior.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/shell.dart';
 import 'ui/screens/splash_screen.dart';
@@ -27,6 +28,7 @@ class TariApp extends StatelessWidget {
       title: 'Belajar Bareng - Tari Saman',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      scrollBehavior: const NoStretchScrollBehavior(),
       home: SplashScreen(
         next: loggedIn ? const Shell() : const LoginScreen(),
       ),

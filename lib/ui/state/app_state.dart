@@ -95,6 +95,10 @@ class UserData {
         badges = badges ?? {},
         recentSearches = recentSearches ?? [];
 
+  // ---- Turunan per-user ----
+  int get totalSeconds => secondsByDay.values.fold(0, (a, b) => a + b);
+  int get totalMinutes => totalSeconds ~/ 60;
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
@@ -168,6 +172,15 @@ class AppState extends ChangeNotifier {
   /// Semua profil (buat list di login screen)
   List<UserData> get allUsers => users.values.toList()
     ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+  /// Semua profil siswa yang tergabung di sanggar yang sama dengan pelatih aktif.
+  List<UserData> get muridProfiles {
+    final sgId = currentSanggarId;
+    if (sgId == null) return [];
+    return users.values
+        .where((u) => u.role == 'siswa' && u.sanggarId == sgId)
+        .toList();
+  }
 
   // ---- Proxy getter ke current ----
   String get name => current?.name ?? 'Penari';

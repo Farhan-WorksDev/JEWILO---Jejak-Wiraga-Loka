@@ -1,0 +1,2353 @@
+﻿
+===== lib\main_ui.dart =====
+import 'package:flutter/material.dart';
+import 'ui/screens/login_screen.dart';
+import 'ui/screens/shell.dart';
+import 'ui/screens/splash_screen.dart';
+import 'ui/state/app_state.dart';
+import 'ui/theme.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppState.instance.load();
+  runApp(const TariAppUI());
+}
+
+class TariAppUI extends StatelessWidget {
+  const TariAppUI({super.key});
+  @override
+  Widget build(BuildContext context) {
+    final loggedIn = AppState.instance.hasLoggedIn;
+    return MaterialApp(
+      title: 'Belajar Bareng (UI)',
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
+      home: SplashScreen(
+        next: loggedIn ? const Shell() : const LoginScreen(),
+      ),
+    );
+  }
+}
+
+
+===== lib\ui\screens\shell.dart =====
+import 'package:flutter/material.dart';
+import '../state/app_state.dart';
+import 'home_screen.dart';
+import 'lessons_screen.dart';
+import 'progress_screen.dart';
+import 'sanggar_screen.dart';
+import 'settings_screen.dart';
+
+class Shell extends StatefulWidget {
+  const Shell({super.key});
+  @override
+  State<Shell> createState() => _ShellState();
+}
+
+class _ShellState extends State<Shell> {
+  int tab = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppState.instance;
+    final isPelatih = s.isPelatih;
+
+    // Tab adaptif berdasarkan role
+    // Siswa: Home / Latihan / Progress / Settings
+    // Pelatih: Home / Sanggar / Progress / Settings
+    final pages = isPelatih
+        ? [
+            HomeScreen(goTab: (i) => setState(() => tab = i)),
+            const SanggarScreen(),
+            const ProgressScreen(),
+            const SettingsScreen(),
+          ]
+        : [
+            HomeScreen(goTab: (i) => setState(() => tab = i)),
+            const LessonsScreen(),
+            const ProgressScreen(),
+            const SettingsScreen(),
+          ];
+
+    final destinations = isPelatih
+        ? const [
+            NavigationDestination(
+                icon: Icon(Icons.school_outlined),
+                selectedIcon: Icon(Icons.school),
+                label: 'Learn'),
+            NavigationDestination(
+                icon: Icon(Icons.groups_outlined),
+                selectedIcon: Icon(Icons.groups),
+                label: 'Sanggar'),
+            NavigationDestination(
+                icon: Icon(Icons.show_chart),
+                selectedIcon: Icon(Icons.insights),
+                label: 'Progress'),
+            NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: 'Settings'),
+          ]
+        : const [
+            NavigationDestination(
+                icon: Icon(Icons.school_outlined),
+                selectedIcon: Icon(Icons.school),
+                label: 'Learn'),
+            NavigationDestination(
+                icon: Icon(Icons.menu_book_outlined),
+                selectedIcon: Icon(Icons.menu_book),
+                label: 'Latihan'),
+            NavigationDestination(
+                icon: Icon(Icons.show_chart),
+                selectedIcon: Icon(Icons.insights),
+                label: 'Progress'),
+            NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: 'Settings'),
+          ];
+
+    return Scaffold(
+      body: IndexedStack(index: tab, children: pages),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: tab,
+        onDestinationSelected: (i) => setState(() => tab = i),
+        destinations: destinations,
+      ),
+    );
+  }
+}
+
+
+===== lib\ui\state\app_state.dart =====
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
+import '../data/saman_data.dart';
+
+const _uuid = Uuid();
+
+String dayKey(DateTime d) =>
+    '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+// ============================================================
+// MODEL SANGGAR
+// ============================================================
+class Sanggar {
+  final String id;
+  final String name;
+  final String pelatih;
+  List<String> siswa;
+  final String createdAt;
+
+  Sanggar({
+    required this.id,
+    required this.name,
+    required this.pelatih,
+    required this.siswa,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'pelatih': pelatih,
+        'siswa': siswa,
+        'createdAt': createdAt,
+      };
+
+  factory Sanggar.fromJson(Map<String, dynamic> m) => Sanggar(
+        id: m['id'] ?? '',
+        name: m['name'] ?? '',
+        pelatih: m['pelatih'] ?? '',
+        siswa: List<String>.from(m['siswa'] ?? []),
+        createdAt: m['createdAt'] ?? '',
+      );
+}
+
+// ============================================================
+// MODEL USER (per profil)
+// ============================================================
+class UserData {
+  final String id;
+  String name;
+  String role;
+  String? sanggarId;
+  Set<int> completed;
+  int streak;
+  int longest;
+  String? lastDay;
+  Map<String, int> secondsByDay;
+  int xp;
+  Set<String> badges;
+  List<String> recentSearches;
+  int fps;
+  bool reminderOn;
+  int reminderHour;
+  int reminderMinute;
+  String habitCue;
+  bool metronome;
+  bool voiceGuide;
+  final String createdAt;
+
+  UserData({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.sanggarId,
+    Set<int>? completed,
+    this.streak = 0,
+    this.longest = 0,
+    this.lastDay,
+    Map<String, int>? secondsByDay,
+    this.xp = 0,
+    Set<String>? badges,
+    List<String>? recentSearches,
+    this.fps = 30,
+    this.reminderOn = true,
+    this.reminderHour = 19,
+    this.reminderMinute = 30,
+    this.habitCue = 'minum teh sore',
+    this.metronome = true,
+    this.voiceGuide = true,
+    required this.createdAt,
+  })  : completed = completed ?? {},
+        secondsByDay = secondsByDay ?? {},
+        badges = badges ?? {},
+        recentSearches = recentSearches ?? [];
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'role': role,
+        'sanggarId': sanggarId,
+        'completed': completed.toList(),
+        'streak': streak,
+        'longest': longest,
+        'lastDay': lastDay,
+        'secondsByDay': secondsByDay,
+        'xp': xp,
+        'badges': badges.toList(),
+        'recentSearches': recentSearches,
+        'fps': fps,
+        'reminderOn': reminderOn,
+        'reminderHour': reminderHour,
+        'reminderMinute': reminderMinute,
+        'habitCue': habitCue,
+        'metronome': metronome,
+        'voiceGuide': voiceGuide,
+        'createdAt': createdAt,
+      };
+
+  factory UserData.fromJson(Map<String, dynamic> m) => UserData(
+        id: m['id'] ?? _uuid.v4(),
+        name: m['name'] ?? 'Penari',
+        role: m['role'] ?? 'siswa',
+        sanggarId: m['sanggarId'],
+        completed: Set<int>.from(m['completed'] ?? []),
+        streak: m['streak'] ?? 0,
+        longest: m['longest'] ?? 0,
+        lastDay: m['lastDay'],
+        secondsByDay: Map<String, int>.from(m['secondsByDay'] ?? {}),
+        xp: m['xp'] ?? 0,
+        badges: Set<String>.from(m['badges'] ?? []),
+        recentSearches: List<String>.from(m['recentSearches'] ?? []),
+        fps: m['fps'] ?? 30,
+        reminderOn: m['reminderOn'] ?? true,
+        reminderHour: m['reminderHour'] ?? 19,
+        reminderMinute: m['reminderMinute'] ?? 30,
+        habitCue: m['habitCue'] ?? 'minum teh sore',
+        metronome: m['metronome'] ?? true,
+        voiceGuide: m['voiceGuide'] ?? true,
+        createdAt: m['createdAt'] ?? DateTime.now().toIso8601String(),
+      );
+}
+
+// ============================================================
+// APPSTATE — DOM-JS style, tapi per user pakai UUID
+// ============================================================
+class AppState extends ChangeNotifier {
+  AppState._();
+  static final AppState instance = AppState._();
+
+  SharedPreferences? _p;
+
+  // === STATE GLOBAL ===
+  /// `Map<userId (UUID), UserData>`
+  Map<String, UserData> users = {};
+
+  /// ID user yang aktif, null = belum login
+  String? activeUserId;
+
+  /// Daftar sanggar (global)
+  List<Sanggar> sanggarList = [];
+
+  // === AKSES ===
+  UserData? get current => activeUserId != null ? users[activeUserId] : null;
+  bool get hasLoggedIn => activeUserId != null;
+
+  /// Semua profil (buat list di login screen)
+  List<UserData> get allUsers => users.values.toList()
+    ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+  // ---- Proxy getter ke current ----
+  String get name => current?.name ?? 'Penari';
+  String get userRole => current?.role ?? 'siswa';
+  String? get currentSanggarId => current?.sanggarId;
+  bool get isPelatih => userRole == 'pelatih';
+  Set<int> get completed => current?.completed ?? {};
+  int get streak => current?.streak ?? 0;
+  int get longest => current?.longest ?? 0;
+  int get xp => current?.xp ?? 0;
+  Set<String> get badges => current?.badges ?? {};
+  List<String> get recentSearches => current?.recentSearches ?? [];
+  int get fps => current?.fps ?? 30;
+  bool get reminderOn => current?.reminderOn ?? true;
+  int get reminderHour => current?.reminderHour ?? 19;
+  int get reminderMinute => current?.reminderMinute ?? 30;
+  String get habitCue => current?.habitCue ?? 'minum teh sore';
+  bool get metronome => current?.metronome ?? true;
+  bool get voiceGuide => current?.voiceGuide ?? true;
+  Map<String, int> get secondsByDay => current?.secondsByDay ?? {};
+
+  Sanggar? get currentSanggar {
+    if (currentSanggarId == null) return null;
+    try {
+      return sanggarList.firstWhere((s) => s.id == currentSanggarId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get inSanggar => currentSanggar != null;
+
+  // ---- Turunan ----
+  double get progress => completed.length / samanVariations.length;
+  bool get allDone => completed.length == samanVariations.length;
+  int get level => xp ~/ 100 + 1;
+  int get totalSeconds => secondsByDay.values.fold(0, (a, b) => a + b);
+  bool get practicedToday => (secondsByDay[dayKey(DateTime.now())] ?? 0) > 0;
+
+  int get currentStreak {
+    final ld = current?.lastDay;
+    if (ld == null) return 0;
+    final t = DateTime.now();
+    final today = DateTime(t.year, t.month, t.day);
+    final l = DateTime.parse(ld);
+    final diff = today.difference(DateTime(l.year, l.month, l.day)).inDays;
+    return diff <= 1 ? streak : 0;
+  }
+
+  bool isUnlocked(int i) => i == 0 || completed.contains(i - 1);
+  String get reminderLabel =>
+      '${reminderHour.toString().padLeft(2, '0')}:${reminderMinute.toString().padLeft(2, '0')}';
+
+  // === ID GENERATORS (UUID v4) ===
+  String _generateSanggarId() {
+    // SANG-XXYY (readable, tapi unik dari UUID)
+    final u = _uuid.v4().replaceAll('-', '');
+    return 'SANG-${u.substring(0, 4).toUpperCase()}';
+  }
+
+  // ============================================================
+  // LOGIN
+  // ============================================================
+  /// Buat profil BARU — selalu bikin UUID baru
+  Future<String> createProfile({
+    required String userName,
+    required String role,
+    String sanggarName = '',
+    String? kodeSanggar,
+  }) async {
+    final trimmed = userName.trim().isEmpty ? 'Penari' : userName.trim();
+    final newId = _uuid.v4();
+
+    String? sanggarId;
+    if (role == 'pelatih') {
+      if (sanggarName.trim().isEmpty) throw 'Nama sanggar wajib diisi';
+      sanggarId = _ensureSanggar(sanggarName.trim(), trimmed);
+    } else if (kodeSanggar != null && kodeSanggar.isNotEmpty) {
+      final kode = kodeSanggar.trim().toUpperCase();
+      if (!sanggarList.any((s) => s.id == kode)) {
+        throw 'Kode sanggar "$kode" tidak ditemukan';
+      }
+      sanggarId = kode;
+    }
+
+    final user = UserData(
+      id: newId,
+      name: trimmed,
+      role: role,
+      sanggarId: sanggarId,
+      createdAt: DateTime.now().toIso8601String(),
+    );
+    users[newId] = user;
+    activeUserId = newId;
+    await _save();
+    notifyListeners();
+    return newId;
+  }
+
+  /// Login ke profil yang SUDAH ada (dipilih dari list)
+  Future<void> loginAs(String userId) async {
+    if (!users.containsKey(userId)) return;
+    activeUserId = userId;
+    await _save();
+    notifyListeners();
+  }
+
+  /// Cari user by name (buat auto-suggest)
+  List<UserData> findUsersByName(String query) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) return [];
+    return users.values
+        .where((u) => u.name.toLowerCase().contains(q))
+        .toList();
+  }
+
+  String _ensureSanggar(String sanggarName, String pelatihName) {
+    try {
+      final existing = sanggarList.firstWhere(
+        (s) =>
+            s.name.toLowerCase() == sanggarName.toLowerCase() &&
+            s.pelatih.toLowerCase() == pelatihName.toLowerCase(),
+      );
+      return existing.id;
+    } catch (_) {
+      final newSg = Sanggar(
+        id: _generateSanggarId(),
+        name: sanggarName,
+        pelatih: pelatihName,
+        siswa: [],
+        createdAt: DateTime.now().toIso8601String(),
+      );
+      sanggarList.add(newSg);
+      return newSg.id;
+    }
+  }
+
+  Future<void> logout() async {
+    await _save();
+    activeUserId = null;
+    notifyListeners();
+  }
+
+  // ============================================================
+  // SANGGAR MANAGEMENT
+  // ============================================================
+  void addSiswa(String nama) {
+    final v = nama.trim();
+    if (v.isEmpty) return;
+    final sg = currentSanggar;
+    if (sg == null) return;
+    if (sg.siswa.contains(v)) return;
+    sg.siswa.add(v);
+    _save();
+    notifyListeners();
+  }
+
+  void removeSiswa(String nama) {
+    final sg = currentSanggar;
+    if (sg == null) return;
+    sg.siswa.remove(nama);
+    _save();
+    notifyListeners();
+  }
+
+  Sanggar? findSanggarById(String id) {
+    try {
+      return sanggarList.firstWhere(
+          (s) => s.id.toUpperCase() == id.trim().toUpperCase());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ============================================================
+  // PROGRESS
+  // ============================================================
+  Future<void> recordSession({required int seconds, int? variationIndex}) async {
+    final u = current;
+    if (u == null) return;
+
+    final today = dayKey(DateTime.now());
+    u.secondsByDay[today] = (u.secondsByDay[today] ?? 0) + seconds;
+
+    if (u.lastDay != today) {
+      final t = DateTime.now();
+      final y = dayKey(DateTime(t.year, t.month, t.day - 1));
+      u.streak = (u.lastDay == y) ? u.streak + 1 : 1;
+      u.lastDay = today;
+      if (u.streak > u.longest) u.longest = u.streak;
+    }
+
+    u.badges.add('first_step');
+    if (u.streak >= 3) u.badges.add('streak3');
+    if (u.streak >= 7) u.badges.add('streak7');
+
+    if (variationIndex == null) {
+      u.xp += 10;
+    } else {
+      final first = u.completed.add(variationIndex);
+      if (first) u.xp += Level.values[variationIndex].xp;
+      u.badges.add(['var_pemula', 'var_menengah', 'var_akhir'][variationIndex]);
+      if (u.completed.length == samanVariations.length) {
+        if (u.badges.add('saman_complete')) u.xp += 150;
+      }
+    }
+    await _save();
+    notifyListeners();
+  }
+
+  // ============================================================
+  // SEARCH
+  // ============================================================
+  void addSearch(String q) {
+    final u = current;
+    if (u == null) return;
+    final v = q.trim();
+    if (v.isEmpty) return;
+    u.recentSearches.removeWhere((e) => e.toLowerCase() == v.toLowerCase());
+    u.recentSearches.insert(0, v);
+    if (u.recentSearches.length > 8) {
+      u.recentSearches = u.recentSearches.sublist(0, 8);
+    }
+    _save();
+    notifyListeners();
+  }
+
+  void removeSearch(String q) {
+    current?.recentSearches.remove(q);
+    _save();
+    notifyListeners();
+  }
+
+  void clearSearches() {
+    current?.recentSearches.clear();
+    _save();
+    notifyListeners();
+  }
+
+  // ============================================================
+  // UPDATE HELPERS
+  // ============================================================
+  void update(void Function() change) {
+    change();
+    _save();
+    notifyListeners();
+  }
+
+  set fps(int v) => current?.fps = v;
+  set reminderOn(bool v) => current?.reminderOn = v;
+  set reminderHour(int v) => current?.reminderHour = v;
+  set reminderMinute(int v) => current?.reminderMinute = v;
+  set habitCue(String v) => current?.habitCue = v;
+  set metronome(bool v) => current?.metronome = v;
+  set voiceGuide(bool v) => current?.voiceGuide = v;
+  set name(String v) => current?.name = v;
+
+  Future<void> resetProgress() async {
+    final u = current;
+    if (u == null) return;
+    u.completed.clear();
+    u.streak = 0;
+    u.longest = 0;
+    u.lastDay = null;
+    u.secondsByDay = {};
+    u.xp = 0;
+    u.badges.clear();
+    u.recentSearches.clear();
+    await _save();
+    notifyListeners();
+  }
+
+  /// Hapus profil user tertentu
+  Future<void> deleteUser(String userId) async {
+    users.remove(userId);
+    if (activeUserId == userId) activeUserId = null;
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> resetAll() async {
+    users.clear();
+    sanggarList.clear();
+    activeUserId = null;
+    await _save();
+    notifyListeners();
+  }
+
+  // ============================================================
+  // STORAGE
+  // ============================================================
+  Future<void> load() async {
+    _p = await SharedPreferences.getInstance();
+    final raw = _p!.getString('app_state_v3');
+    if (raw == null) {
+      // Coba migration dari v2 (nama-based)
+      await _migrateFromV2();
+      return;
+    }
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      final usersRaw = m['users'] as Map<String, dynamic>? ?? {};
+      users = usersRaw.map((k, v) =>
+          MapEntry(k, UserData.fromJson(Map<String, dynamic>.from(v))));
+      activeUserId = m['activeUserId'];
+      final sgRaw = m['sanggarList'] as List? ?? [];
+      sanggarList = sgRaw
+          .map((e) => Sanggar.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+    } catch (_) {
+      users = {};
+      activeUserId = null;
+      sanggarList = [];
+    }
+  }
+
+  Future<void> _migrateFromV2() async {
+    final raw = _p!.getString('app_state_v2');
+    if (raw == null) return;
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      final usersRaw = m['users'] as Map<String, dynamic>? ?? {};
+      // Convert nama-keyed → UUID-keyed
+      users = {};
+      for (final entry in usersRaw.entries) {
+        final data = Map<String, dynamic>.from(entry.value);
+        final newId = _uuid.v4();
+        data['id'] = newId;
+        data['createdAt'] = DateTime.now().toIso8601String();
+        users[newId] = UserData.fromJson(data);
+      }
+      activeUserId = null; // paksa login ulang
+      final sgRaw = m['sanggarList'] as List? ?? [];
+      sanggarList = sgRaw
+          .map((e) => Sanggar.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      await _save();
+    } catch (_) {}
+  }
+
+  Future<void> _save() async {
+    await _p?.setString(
+      'app_state_v3',
+      jsonEncode({
+        'users': users.map((k, v) => MapEntry(k, v.toJson())),
+        'activeUserId': activeUserId,
+        'sanggarList': sanggarList.map((s) => s.toJson()).toList(),
+      }),
+    );
+  }
+}
+
+
+===== lib\ui\screens\login_screen.dart =====
+import 'package:flutter/material.dart';
+import '../state/app_state.dart';
+import '../theme.dart';
+import 'shell.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool _showCreateForm = false;
+
+  void _goToHome() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const Shell()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: SafeArea(
+        child: ListenableBuilder(
+          listenable: AppState.instance,
+          builder: (context, _) {
+            final s = AppState.instance;
+            final users = s.allUsers;
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  _header(),
+                  if (!_showCreateForm && users.isNotEmpty)
+                    _profileList(users)
+                  else
+                    _createForm(),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _header() => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+              colors: [C.purpleDark, C.purple],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        ),
+        child: Column(children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: .15),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: .3), width: 2),
+            ),
+            child: const Icon(Icons.self_improvement,
+                size: 52, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          const Text('Belajar Bareng',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800)),
+          const SizedBox(height: 4),
+          Text('Eksplorasi Seni Tari Nusantara',
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: .75),
+                  fontSize: 13)),
+        ]),
+      );
+
+  // ============================================================
+  // LIST PROFIL EXISTING
+  // ============================================================
+  Widget _profileList(List<UserData> users) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Expanded(
+                child: Text('Pilih Profil',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 16)),
+              ),
+              Text('${users.length} profil',
+                  style: const TextStyle(color: C.muted, fontSize: 12)),
+            ]),
+            const SizedBox(height: 12),
+            for (final u in users) ...[
+              _userTile(u),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: C.purple,
+                    side: const BorderSide(color: C.purple),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                onPressed: () => setState(() => _showCreateForm = true),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Buat Profil Baru',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: Text(
+                  'Semua data disimpan di HP kamu • 100% offline',
+                  style: TextStyle(
+                      color: C.muted.withValues(alpha: .8), fontSize: 11.5)),
+            ),
+          ],
+        ),
+      );
+
+  Widget _userTile(UserData u) => GestureDetector(
+        onTap: () async {
+          await AppState.instance.loginAs(u.id);
+          if (!mounted) return;
+          _goToHome();
+        },
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: C.line),
+          ),
+          child: Row(children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                  color: C.purpleSoft, shape: BoxShape.circle),
+              child: Icon(
+                  u.role == 'pelatih'
+                      ? Icons.groups_outlined
+                      : Icons.school_outlined,
+                  color: C.purple,
+                  size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(u.name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14.5)),
+                    const SizedBox(height: 2),
+                    Text(
+                        u.role == 'pelatih'
+                            ? 'Pelatih'
+                            : 'Siswa • Lv ${u.xp ~/ 100 + 1} • ${u.xp} XP',
+                        style: const TextStyle(
+                            color: C.muted, fontSize: 12)),
+                  ]),
+            ),
+            const Icon(Icons.arrow_forward_ios, size: 14, color: C.muted),
+          ]),
+        ),
+      );
+
+  // ============================================================
+  // FORM CREATE PROFIL BARU
+  // ============================================================
+  Widget _createForm() {
+    final hasUsers = AppState.instance.users.isNotEmpty;
+    return _CreateProfileForm(
+      showBack: hasUsers,
+      onCancel: () => setState(() => _showCreateForm = false),
+      onSuccess: _goToHome,
+    );
+  }
+}
+
+// ============================================================
+// FORM STATE
+// ============================================================
+class _CreateProfileForm extends StatefulWidget {
+  final bool showBack;
+  final VoidCallback onCancel;
+  final VoidCallback onSuccess;
+  const _CreateProfileForm({
+    required this.showBack,
+    required this.onCancel,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_CreateProfileForm> createState() => _CreateProfileFormState();
+}
+
+class _CreateProfileFormState extends State<_CreateProfileForm> {
+  final _namaCtrl = TextEditingController();
+  final _sanggarCtrl = TextEditingController();
+  final _kodeCtrl = TextEditingController();
+  String _role = 'siswa';
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _namaCtrl.dispose();
+    _sanggarCtrl.dispose();
+    _kodeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final nama = _namaCtrl.text.trim();
+    if (nama.isEmpty) {
+      _snack('Nama wajib diisi');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await AppState.instance.createProfile(
+        userName: nama,
+        role: _role,
+        sanggarName: _role == 'pelatih' ? _sanggarCtrl.text.trim() : '',
+        kodeSanggar: _role == 'siswa' ? _kodeCtrl.text.trim() : null,
+      );
+      if (!mounted) return;
+      widget.onSuccess();
+    } catch (e) {
+      setState(() => _loading = false);
+      _snack(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            if (widget.showBack)
+              IconButton(
+                onPressed: widget.onCancel,
+                icon: const Icon(Icons.arrow_back),
+              ),
+            if (widget.showBack) const SizedBox(width: 4),
+            const Text('Buat Profil Baru',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 17)),
+          ]),
+          const SizedBox(height: 20),
+          _label('Nama Kamu'),
+          const SizedBox(height: 8),
+          _textField(_namaCtrl, 'Nama lengkap kamu', Icons.person_outline),
+          const SizedBox(height: 20),
+          _label('Peran'),
+          const SizedBox(height: 8),
+          Row(children: [
+            Expanded(
+              child: _roleCard(
+                icon: Icons.school_outlined,
+                title: 'Siswa',
+                sub: 'Belajar tari',
+                selected: _role == 'siswa',
+                onTap: () => setState(() => _role = 'siswa'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _roleCard(
+                icon: Icons.groups_outlined,
+                title: 'Pelatih',
+                sub: 'Kelola sanggar',
+                selected: _role == 'pelatih',
+                onTap: () => setState(() => _role = 'pelatih'),
+              ),
+            ),
+          ]),
+
+          // Pelatih: nama sanggar
+          if (_role == 'pelatih') ...[
+            const SizedBox(height: 20),
+            _label('Nama Sanggar'),
+            const SizedBox(height: 8),
+            _textField(_sanggarCtrl, 'Nama sanggar kamu',
+                Icons.home_work_outlined),
+            const SizedBox(height: 8),
+            _infoBox(
+                'ID Sanggar akan dibuat otomatis. Share ID ke siswa untuk gabung.'),
+          ],
+
+          // Siswa: kode sanggar (opsional)
+          if (_role == 'siswa') ...[
+            const SizedBox(height: 20),
+            Row(children: [
+              _label('Kode Sanggar'),
+              const SizedBox(width: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                    color: C.line,
+                    borderRadius: BorderRadius.circular(6)),
+                child: const Text('opsional',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: C.muted,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ]),
+            const SizedBox(height: 8),
+            _textField(_kodeCtrl, 'Kode dari pelatih (SANG-XXXX)',
+                Icons.vpn_key_outlined,
+                uppercase: true),
+            const SizedBox(height: 8),
+            _infoBox(
+                'Kosongkan kalau mau latihan mandiri tanpa sanggar.'),
+          ],
+
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                  backgroundColor: C.purple,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 0),
+              onPressed: _loading ? null : _submit,
+              child: _loading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Buat & Masuk',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 15,
+                                color: Colors.white)),
+                        SizedBox(width: 8),
+                        Icon(Icons.arrow_forward,
+                            size: 18, color: Colors.white),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _label(String s) => Text(s,
+      style: const TextStyle(
+          color: C.ink, fontSize: 13.5, fontWeight: FontWeight.w700));
+
+  Widget _textField(TextEditingController c, String hint, IconData icon,
+          {bool uppercase = false}) =>
+      TextField(
+        controller: c,
+        textCapitalization: uppercase
+            ? TextCapitalization.characters
+            : TextCapitalization.none,
+        style: const TextStyle(color: C.ink, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: C.muted.withValues(alpha: .7)),
+          prefixIcon: Icon(icon, color: C.muted, size: 20),
+          filled: true,
+          fillColor: Colors.white,
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: C.line)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: C.purple, width: 1.5)),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
+      );
+
+  Widget _roleCard({
+    required IconData icon,
+    required String title,
+    required String sub,
+    required bool selected,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: selected ? C.purpleSoft : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+                color: selected ? C.purple : C.line,
+                width: selected ? 1.5 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: selected ? C.purple : C.muted, size: 24),
+              const SizedBox(height: 8),
+              Text(title,
+                  style: TextStyle(
+                      color: selected ? C.purple : C.ink,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14)),
+              Text(sub,
+                  style: const TextStyle(color: C.muted, fontSize: 11.5)),
+            ],
+          ),
+        ),
+      );
+
+  Widget _infoBox(String text) => Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: C.purpleSoft,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(children: [
+          const Icon(Icons.info_outline, size: 16, color: C.purple),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: C.purple.withValues(alpha: .8))),
+          ),
+        ]),
+      );
+}
+
+
+===== lib\ui\screens\sanggar_screen.dart =====
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../state/app_state.dart';
+import '../theme.dart';
+import '../widgets/common.dart';
+
+class SanggarScreen extends StatefulWidget {
+  const SanggarScreen({super.key});
+  @override
+  State<SanggarScreen> createState() => _SanggarScreenState();
+}
+
+class _SanggarScreenState extends State<SanggarScreen> {
+  final _namaCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _namaCtrl.dispose();
+    super.dispose();
+  }
+
+  void _tambahSiswa() {
+    final nama = _namaCtrl.text.trim();
+    if (nama.isEmpty) {
+      _snack('Nama siswa tidak boleh kosong');
+      return;
+    }
+    final s = AppState.instance;
+    final sg = s.currentSanggar;
+    if (sg == null) {
+      _snack('Sanggar tidak ditemukan');
+      return;
+    }
+    if (sg.siswa.contains(nama)) {
+      _snack('"$nama" sudah ada di daftar');
+      return;
+    }
+    s.addSiswa(nama);
+    _namaCtrl.clear();
+    FocusScope.of(context).unfocus();
+    _snack('✅ $nama ditambahkan');
+  }
+
+  Future<void> _hapusSiswa(String nama) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Hapus siswa?',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+        content: Text('"$nama" akan dihapus dari daftar sanggar.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal')),
+          FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: C.red),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Hapus')),
+        ],
+      ),
+    );
+    if (ok == true) {
+      AppState.instance.removeSiswa(nama);
+      if (!mounted) return;
+      _snack('"$nama" dihapus');
+    }
+  }
+
+  void _snack(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _copyId() {
+    final sg = AppState.instance.currentSanggar;
+    if (sg == null) return;
+    Clipboard.setData(ClipboardData(text: sg.id));
+    _snack('✅ ID "${sg.id}" dicopy');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppState.instance;
+    final sg = s.currentSanggar;
+
+    if (sg == null) {
+      return Scaffold(
+        backgroundColor: C.bg,
+        body: const Center(child: Text('Sanggar tidak ditemukan')),
+      );
+    }
+
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) => ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          GradientHeader(
+            title: 'Sanggar',
+            subtitle: '${sg.name} • ${sg.siswa.length} siswa',
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ============ ID SANGGAR CARD ============
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                        colors: [C.purple, C.purpleDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.vpn_key_outlined,
+                            color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        const Text('ID SANGGAR',
+                            style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1)),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(8)),
+                          child: const Text('SHARE KE SISWA',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: .5)),
+                        ),
+                      ]),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(
+                          child: Text(sg.id,
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 2)),
+                        ),
+                        IconButton(
+                          style: IconButton.styleFrom(
+                              backgroundColor: Colors.white24),
+                          onPressed: _copyId,
+                          icon: const Icon(Icons.copy,
+                              color: Colors.white, size: 18),
+                        ),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text(
+                          'Siswa input kode ini di Login untuk gabung ke sanggar kamu.',
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: .75),
+                              fontSize: 11.5)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // ============ TAMBAH SISWA ============
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: C.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(children: [
+                        Icon(Icons.person_add_alt_1,
+                            color: C.purple, size: 20),
+                        SizedBox(width: 8),
+                        Text('Tambah Siswa Baru',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 14)),
+                      ]),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _namaCtrl,
+                              textInputAction: TextInputAction.done,
+                              onSubmitted: (_) => _tambahSiswa(),
+                              decoration: InputDecoration(
+                                hintText: 'Nama siswa',
+                                filled: true,
+                                fillColor: C.bg,
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 14, vertical: 12),
+                                enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide:
+                                        const BorderSide(color: C.line)),
+                                focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(
+                                        color: C.purple, width: 1.5)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 48,
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                  backgroundColor: C.purple,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 20),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius:
+                                          BorderRadius.circular(12))),
+                              onPressed: _tambahSiswa,
+                              child: const Text('Tambah',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // ============ LIST SISWA ============
+                Row(children: [
+                  const Expanded(
+                    child: Text('Daftar Siswa',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 15)),
+                  ),
+                  Pill('${sg.siswa.length} siswa',
+                      fg: C.purple, bg: C.purpleSoft),
+                ]),
+                const SizedBox(height: 10),
+
+                if (sg.siswa.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: C.line),
+                    ),
+                    child: Column(children: [
+                      Icon(Icons.people_outline,
+                          size: 56, color: C.line),
+                      const SizedBox(height: 12),
+                      const Text('Belum ada siswa',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: C.muted,
+                              fontSize: 14)),
+                      const SizedBox(height: 4),
+                      const Text(
+                          'Tambahkan siswa lewat form di atas,\natau share ID sanggar',
+                          textAlign: TextAlign.center,
+                          style:
+                              TextStyle(color: C.muted, fontSize: 12)),
+                    ]),
+                  )
+                else
+                  for (int i = 0; i < sg.siswa.length; i++) ...[
+                    _siswaTile(i + 1, sg.siswa[i]),
+                    const SizedBox(height: 8),
+                  ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _siswaTile(int no, String nama) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: C.line),
+        ),
+        child: Row(children: [
+          Container(
+            width: 40,
+            height: 40,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: C.purpleSoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text('$no',
+                style: const TextStyle(
+                    color: C.purple,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(nama,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14)),
+                const SizedBox(height: 2),
+                const Text('Siswa Sanggar',
+                    style: TextStyle(color: C.muted, fontSize: 11.5)),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline,
+                color: C.red, size: 20),
+            onPressed: () => _hapusSiswa(nama),
+          ),
+        ]),
+      );
+}
+
+
+===== lib\ui\screens\home_screen.dart =====
+import 'package:flutter/material.dart';
+import '../data/saman_data.dart';
+import '../state/app_state.dart';
+import '../theme.dart';
+import 'notifications_screen.dart';
+import 'practice_screen.dart';
+import 'saman_detail_screen.dart';
+import 'search_screen.dart';
+
+class HomeScreen extends StatelessWidget {
+  final void Function(int) goTab;
+  const HomeScreen({super.key, required this.goTab});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppState.instance;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) => ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _header(context, s),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _heroCard(context, s),
+                const SizedBox(height: 14),
+                _quickActions(context, s),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context, AppState s) => Container(
+        padding: EdgeInsets.fromLTRB(
+            20, MediaQuery.of(context).padding.top + 14, 20, 22),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+              colors: [C.purpleDark, C.purple],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight),
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const CircleAvatar(
+                radius: 22,
+                backgroundColor: C.orange,
+                child: Icon(Icons.self_improvement, color: Colors.white)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Hi, ${s.name}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800)),
+                Text(
+                    s.practicedToday
+                        ? 'Latihan hari ini sudah beres ✔'
+                        : 'Yuk latihan hari ini',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: .7),
+                        fontSize: 12.5)),
+              ]),
+            ),
+            _bellIcon(context),
+          ]),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(child: _searchBar(context)),
+            const SizedBox(width: 10),
+            _streakChip(s),
+          ]),
+        ]),
+      );
+
+  Widget _bellIcon(BuildContext context) => GestureDetector(
+        onTap: () => Navigator.push(context,
+            MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+        child: Stack(children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+                color: Colors.white24, shape: BoxShape.circle),
+            child: const Icon(Icons.notifications_none,
+                color: Colors.white, size: 22),
+          ),
+          Positioned(
+            right: 6,
+            top: 6,
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                  color: C.orange, shape: BoxShape.circle),
+            ),
+          ),
+        ]),
+      );
+
+  Widget _searchBar(BuildContext context) => GestureDetector(
+        onTap: () => Navigator.push(
+            context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+              color: Colors.white, borderRadius: BorderRadius.circular(24)),
+          child: Row(children: const [
+            Icon(Icons.search, color: C.muted, size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text('Cari tarian...',
+                  style: TextStyle(color: C.muted, fontSize: 13)),
+            ),
+          ]),
+        ),
+      );
+
+  Widget _streakChip(AppState s) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .15),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white24)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.local_fire_department, color: C.orange, size: 18),
+          const SizedBox(width: 4),
+          Text('${s.currentStreak}',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14)),
+        ]),
+      );
+
+  Widget _heroCard(BuildContext context, AppState s) {
+    final next = s.allDone ? 0 : s.completed.length;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+            colors: [Color(0xFF6B5A9E), Color(0xFF423270)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+              color: C.purple.withValues(alpha: .32),
+              blurRadius: 24,
+              offset: const Offset(0, 10)),
+        ],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(12)),
+            child: const Text('FOKUS HARI INI',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1)),
+          ),
+          const Spacer(),
+          Text('${s.completed.length}/3',
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14)),
+        ]),
+        const SizedBox(height: 16),
+        const Text('Tari Saman',
+            style: TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text(
+            s.allDone
+                ? 'Semua variasi sudah tuntas!'
+                : 'Lanjut Variasi ${Level.values[next].label}',
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: .85), fontSize: 14)),
+        const SizedBox(height: 16),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: s.progress,
+            minHeight: 8,
+            backgroundColor: Colors.white24,
+            valueColor: const AlwaysStoppedAnimation(C.orange),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(
+                backgroundColor: C.orange,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                elevation: 0),
+            onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => SamanDetailScreen(initial: next))),
+            icon: const Icon(Icons.play_arrow),
+            label: Text(s.allDone ? 'Ulangi Latihan' : 'Lanjut Latihan',
+                style: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  Widget _quickActions(BuildContext context, AppState s) => Row(children: [
+        Expanded(
+          child: _actionCard(
+            icon: Icons.timer_outlined,
+            label: 'Mode 2 Menit',
+            sub: 'Pemanasan cepat',
+            color: C.purpleSoft,
+            iconColor: C.purple,
+            onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        PracticeScreen(variationIndex: 0, mini: true))),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _actionCard(
+            icon: Icons.insights,
+            label: 'Lihat Progress',
+            sub: '${s.xp} XP • Lv ${s.level}',
+            color: C.greenSoft,
+            iconColor: C.green,
+            onTap: () => goTab(2),
+          ),
+        ),
+      ]);
+
+  Widget _actionCard({
+    required IconData icon,
+    required String label,
+    required String sub,
+    required Color color,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) =>
+      GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(icon, color: iconColor, size: 20),
+              ),
+              const SizedBox(height: 12),
+              Text(label,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                      color: C.ink)),
+              const SizedBox(height: 3),
+              Text(sub,
+                  style: TextStyle(
+                      color: C.ink.withValues(alpha: .65),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500)),
+            ],
+          ),
+        ),
+      );
+}
+
+
+===== lib\ui\screens\settings_screen.dart =====
+import 'package:flutter/material.dart';
+import '../state/app_state.dart';
+import '../widgets/common.dart';
+import '../theme.dart';
+import 'login_screen.dart';
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppState.instance;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) => ListView(padding: EdgeInsets.zero, children: [
+        const GradientHeader(
+          title: 'Pengaturan',
+          subtitle: 'Semua data tersimpan di HP kamu',
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+          child: Column(children: [
+            // === PROFIL ===
+            _section('Profil', [
+              Row(children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                      color: C.purpleSoft, shape: BoxShape.circle),
+                  child: Icon(
+                      s.isPelatih
+                          ? Icons.groups_outlined
+                          : Icons.school_outlined,
+                      color: C.purple),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w800, fontSize: 15)),
+                        const SizedBox(height: 2),
+                        Text(
+                            s.isPelatih
+                                ? 'Pelatih • ${s.currentSanggar?.name ?? "-"}'
+                                : (s.inSanggar
+                                    ? 'Siswa • ${s.currentSanggar?.name ?? "-"}'
+                                    : 'Siswa Mandiri'),
+                            style: const TextStyle(
+                                color: C.muted, fontSize: 12.5)),
+                      ]),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              TextFormField(
+                initialValue: s.name,
+                decoration: InputDecoration(
+                    labelText: 'Nama panggilan',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    filled: true,
+                    fillColor: C.bg),
+                onChanged: (v) => s.update(
+                    () => s.name = v.trim().isEmpty ? 'Penari' : v.trim()),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // === PEMICU HARIAN ===
+            _section('Pemicu Harian', [
+              _switchRow(
+                title: 'Pengingat latihan',
+                sub: 'Setiap pukul ${s.reminderLabel}',
+                value: s.reminderOn,
+                onChanged: (v) => s.update(() => s.reminderOn = v),
+              ),
+              _tapRow(
+                title: 'Jam latihan',
+                trailing: s.reminderLabel,
+                onTap: () async {
+                  final t = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay(
+                          hour: s.reminderHour, minute: s.reminderMinute));
+                  if (t != null) {
+                    s.update(() {
+                      s.reminderHour = t.hour;
+                      s.reminderMinute = t.minute;
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: s.habitCue,
+                decoration: InputDecoration(
+                    labelText: 'Setelah aku ...',
+                    helperText: 'Kebiasaan pemicu latihan',
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    filled: true,
+                    fillColor: C.bg),
+                onChanged: (v) => s.update(() => s.habitCue = v),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // === KAMERA ===
+            _section('Kamera & Deteksi', [
+              const Text('Frame rate (FPS)',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              const Text('FPS tinggi = deteksi lebih halus, tapi boros baterai',
+                  style: TextStyle(color: C.muted, fontSize: 12)),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                    color: C.bg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: C.line)),
+                child: Row(
+                  children: [
+                    for (final fps in [15, 24, 30, 60])
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => s.update(() => s.fps = fps),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: s.fps == fps
+                                  ? C.purple
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Center(
+                              child: Text('$fps',
+                                  style: TextStyle(
+                                      color: s.fps == fps
+                                          ? Colors.white
+                                          : C.ink,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13)),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ]),
+            const SizedBox(height: 12),
+
+            // === AUDIO ===
+            _section('Audio', [
+              _switchRow(
+                title: 'Metronom ketukan',
+                sub: 'Bunyi tempo sesuai detik per gerakan',
+                value: s.metronome,
+                onChanged: (v) => s.update(() => s.metronome = v),
+              ),
+              _switchRow(
+                title: 'Panduan suara pelatih',
+                sub: 'Instruksi suara offline',
+                value: s.voiceGuide,
+                onChanged: (v) => s.update(() => s.voiceGuide = v),
+              ),
+            ]),
+            const SizedBox(height: 24),
+
+            // === RESET ===
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                    foregroundColor: C.red,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                            color: C.red.withValues(alpha: .3)))),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: const Text('Reset Semua Progres',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                onPressed: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      title: const Text('Reset semua progres?',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 17)),
+                      content: const Text(
+                          'Streak, XP, lencana, dan variasi yang selesai akan dihapus.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Batal')),
+                        FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: C.red),
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Reset')),
+                      ],
+                    ),
+                  );
+                  if (ok == true) await s.resetProgress();
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // === LOGOUT ===
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                style: TextButton.styleFrom(
+                    foregroundColor: C.purple,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                            color: C.purple.withValues(alpha: .3)))),
+                icon: const Icon(Icons.logout, size: 18),
+                label: const Text('Keluar dari Akun',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+                onPressed: () async {
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20)),
+                      title: const Text('Keluar dari akun?',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w800, fontSize: 17)),
+                      content: const Text(
+                          'Data latihan kamu tetap tersimpan. Kamu bisa masuk lagi dengan nama yang sama.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Batal')),
+                        FilledButton(
+                            style: FilledButton.styleFrom(
+                                backgroundColor: C.purple),
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Keluar')),
+                      ],
+                    ),
+                  );
+                  if (ok == true) {
+                    await s.logout();
+                    if (!context.mounted) return;
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(
+                          builder: (_) => const LoginScreen()),
+                      (_) => false,
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Versi 1.0.0 • Mode offline',
+                style: TextStyle(color: C.muted, fontSize: 12)),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _section(String title, List<Widget> children) => Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: C.line),
+        ),
+        child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 14)),
+              const SizedBox(height: 12),
+              ...children,
+            ]),
+      );
+
+  Widget _switchRow({
+    required String title,
+    required String sub,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(children: [
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 13.5)),
+                  Text(sub,
+                      style: const TextStyle(color: C.muted, fontSize: 12)),
+                ]),
+          ),
+          Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: Colors.white,
+              activeTrackColor: C.purple),
+        ]),
+      );
+
+  Widget _tapRow({
+    required String title,
+    required String trailing,
+    required VoidCallback onTap,
+  }) =>
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(children: [
+            Expanded(
+              child: Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 13.5)),
+            ),
+            Text(trailing,
+                style: const TextStyle(
+                    color: C.purple, fontWeight: FontWeight.w700)),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, size: 18, color: C.muted),
+          ]),
+        ),
+      );
+}
+
+
+===== lib\ui\theme.dart =====
+import 'package:flutter/material.dart';
+
+/// Palet warna aplikasi — versi MEDIUM SOFT.
+/// Soft & nyaman, tapi kontras tetap terjaga (gak washed out).
+class C {
+  // === UNGU UTAMA (pekat cukup, tapi kalem) ===
+  static const purple = Color(0xFF5D4B8C);
+  static const purpleDark = Color(0xFF423270);
+  static const purpleSoft = Color(0xFFEBE4F7);
+
+  // === ORANYE (hangat, hidup tapi gak nyala) ===
+  static const orange = Color(0xFFED9848);
+  static const orangeSoft = Color(0xFFFFF0DC);
+
+  // === HIJAU (medium, gak neon) ===
+  static const green = Color(0xFF4FA878);
+  static const greenSoft = Color(0xFFE1F3E9);
+
+  // === BIRU soft ===
+  static const blueSoft = Color(0xFFE7EFFB);
+
+  // === NEUTRAL ===
+  static const bg = Color(0xFFF5F2FA);
+  static const ink = Color(0xFF2A2440);
+  static const muted = Color(0xFF6E6885);
+  static const line = Color(0xFFE5DEF2);
+
+  // === AKSEN ===
+  static const red = Color(0xFFD96060);
+  static const redSoft = Color(0xFFFAE5E5);
+  static const gold = Color(0xFFE8B860);
+  static const fire = Color(0xFFED9848);
+  static const fireDeep = Color(0xFFD96060);
+
+  // === LAYAR LATIHAN ===
+  static const darkBg = Color(0xFF2C2444);
+  static const darkBgDeep = Color(0xFF1A142E);
+  static const success = Color(0xFF6BC494);
+  static const glowPurple = Color(0xFFA896D8);
+}
+
+ThemeData buildTheme() {
+  final base = ThemeData(
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: C.purple,
+      primary: C.purple,
+      surface: C.bg,
+    ),
+    scaffoldBackgroundColor: C.bg,
+  );
+  final tt = base.textTheme.apply(bodyColor: C.ink, displayColor: C.ink);
+  return base.copyWith(
+    textTheme: tt.copyWith(
+      displayLarge: tt.displayLarge?.copyWith(fontWeight: FontWeight.w800),
+      displayMedium: tt.displayMedium?.copyWith(fontWeight: FontWeight.w800),
+      displaySmall: tt.displaySmall?.copyWith(fontWeight: FontWeight.w800),
+      headlineLarge: tt.headlineLarge?.copyWith(fontWeight: FontWeight.w800),
+      headlineMedium: tt.headlineMedium?.copyWith(fontWeight: FontWeight.w800),
+      headlineSmall: tt.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+      titleLarge: tt.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+      titleMedium: tt.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+      titleSmall: tt.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+      bodyLarge: tt.bodyLarge?.copyWith(fontWeight: FontWeight.w400),
+      bodyMedium: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w400),
+      bodySmall: tt.bodySmall?.copyWith(fontWeight: FontWeight.w400),
+      labelLarge: tt.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+      labelMedium: tt.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+      labelSmall: tt.labelSmall?.copyWith(fontWeight: FontWeight.w500),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: Colors.white,
+      indicatorColor: C.purpleSoft,
+      labelTextStyle: WidgetStateProperty.all(
+        const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    ),
+  );
+}
+
+
+===== lib\ui\widgets\common.dart =====
+import 'package:flutter/material.dart';
+import '../state/app_state.dart';
+import '../theme.dart';
+
+class GradientHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final Widget? bottom;
+  const GradientHeader(
+      {super.key, required this.title, required this.subtitle, this.bottom});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(
+          20, MediaQuery.of(context).padding.top + 14, 20, 22),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+            colors: [C.purpleDark, C.purple],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const CircleAvatar(
+              radius: 20,
+              backgroundColor: C.orange,
+              child: Icon(Icons.self_improvement, color: Colors.white)),
+          const SizedBox(width: 10),
+          const Expanded(
+              child: Text('Belajar Bareng',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800))),
+          const StreakChip(),
+        ]),
+        const SizedBox(height: 18),
+        Text(title,
+            style: const TextStyle(
+                color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 2),
+        Text(subtitle,
+            style: TextStyle(color: Colors.white.withValues(alpha: .75))),
+        if (bottom != null) ...[const SizedBox(height: 14), bottom!],
+      ]),
+    );
+  }
+}
+
+class StreakChip extends StatelessWidget {
+  const StreakChip({super.key});
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: AppState.instance,
+        builder: (_, _) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white24)),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.local_fire_department, color: C.orange, size: 18),
+            const SizedBox(width: 4),
+            Text('${AppState.instance.currentStreak} Hari',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
+          ]),
+        ),
+      );
+}
+
+class CardBox extends StatelessWidget {
+  final Widget child;
+  final Color color;
+  final Color? border;
+  final EdgeInsets padding;
+  const CardBox(
+      {super.key,
+      required this.child,
+      this.color = Colors.white,
+      this.border,
+      this.padding = const EdgeInsets.all(16)});
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: color,
+        borderRadius: BorderRadius.circular(22),
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          width: double.infinity,
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: border ?? C.line),
+          ),
+          child: child,
+        ),
+      );
+}
+
+class Pill extends StatelessWidget {
+  final String text;
+  final Color fg;
+  final Color bg;
+  final IconData? icon;
+  const Pill(this.text,
+      {super.key, this.fg = C.purple, this.bg = C.purpleSoft, this.icon});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration:
+            BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: fg),
+            const SizedBox(width: 4)
+          ],
+          Flexible(
+              child: Text(text,
+                  style: TextStyle(
+                      color: fg, fontSize: 11.5, fontWeight: FontWeight.w700))),
+        ]),
+      );
+}
+
+class Bar extends StatelessWidget {
+  final double value;
+  final Color color;
+  final double height;
+  const Bar(this.value, {super.key, this.color = C.orange, this.height = 10});
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: LinearProgressIndicator(
+          value: value.clamp(0.0, 1.0),
+          minHeight: height,
+          backgroundColor: C.purpleSoft,
+          valueColor: AlwaysStoppedAnimation(color),
+        ),
+      );
+}
+
+class SectionTitle extends StatelessWidget {
+  final String text;
+  final Widget? trailing;
+  const SectionTitle(this.text, {super.key, this.trailing});
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 22, 4, 10),
+        child: Row(children: [
+          Expanded(
+              child: Text(text,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800))),
+          ?trailing,
+        ]),
+      );
+}
+
+String fmtSec(double s) => '${s.toStringAsFixed(1)} dtk';
+String fmtDur(num sec) {
+  final m = sec ~/ 60;
+  final s = (sec % 60).round();
+  if (m == 0) return '$s dtk';
+  return s == 0 ? '$m mnt' : '$m mnt $s dtk';
+}
+

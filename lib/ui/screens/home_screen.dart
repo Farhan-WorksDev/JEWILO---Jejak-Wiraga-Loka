@@ -2,6 +2,7 @@
 import '../data/saman_data.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/shell_animation.dart';
 import 'notifications_screen.dart';
 import 'practice_screen.dart';
 import 'saman_detail_screen.dart';
@@ -19,16 +20,18 @@ class HomeScreen extends StatelessWidget {
       builder: (context, _) => ListView(
         padding: EdgeInsets.zero,
         children: [
-          _header(context, s),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _heroCard(context, s),
-                const SizedBox(height: 14),
-                _quickActions(context, s),
-              ],
+          _header(context, s), // statis, tanpa animasi
+          SlideUpFade(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _heroCard(context, s),
+                  const SizedBox(height: 14),
+                  _quickActions(context, s),
+                ],
+              ),
             ),
           ),
         ],

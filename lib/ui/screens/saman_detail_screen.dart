@@ -54,8 +54,10 @@ class _SamanDetailScreenState extends State<SamanDetailScreen> {
     );
   }
 
+  // Tinggi hero fleksibel (minHeight) supaya tidak overflow di HP dengan
+  // status bar tinggi / font besar.
   Widget _hero(BuildContext context) => Container(
-        height: 180,
+        constraints: const BoxConstraints(minHeight: 180),
         width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -65,56 +67,61 @@ class _SamanDetailScreenState extends State<SamanDetailScreen> {
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
         ),
         child: SafeArea(
+          bottom: false,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              IconButton.filled(
-                style: IconButton.styleFrom(backgroundColor: Colors.white24),
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-              ),
-              const Spacer(),
-              Row(children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(12)),
-                  child: const Text('ACEH GAYO',
+            child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  IconButton.filled(
+                    style:
+                        IconButton.styleFrom(backgroundColor: Colors.white24),
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: const Text('ACEH GAYO',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1)),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: C.orange,
+                          borderRadius: BorderRadius.circular(12)),
+                      child:
+                          const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.bolt, color: Colors.white, size: 12),
+                        SizedBox(width: 2),
+                        Text('DINAMIS',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1)),
+                      ]),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  const Text('Tari Saman',
                       style: TextStyle(
                           color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1)),
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: C.orange,
-                      borderRadius: BorderRadius.circular(12)),
-                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.bolt, color: Colors.white, size: 12),
-                    SizedBox(width: 2),
-                    Text('DINAMIS',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1)),
-                  ]),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              const Text('Tari Saman',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800)),
-            ]),
+                          fontSize: 28,
+                          fontWeight: FontWeight.w800)),
+                ]),
           ),
         ),
       );
@@ -293,8 +300,19 @@ class _SamanDetailScreenState extends State<SamanDetailScreen> {
                     MaterialPageRoute(
                         builder: (_) => PracticeScreen(variationIndex: sel)))
                 : null,
-            icon: Icon(unlocked ? (AppState.instance.completed.contains(sel) ? Icons.replay : Icons.camera_alt) : Icons.lock, size: 18),
-            label: Text(unlocked ? (AppState.instance.completed.contains(sel) ? 'Ulangi Latihan' : 'Mulai Latihan') : 'Terkunci',
+            icon: Icon(
+                unlocked
+                    ? (AppState.instance.completed.contains(sel)
+                        ? Icons.replay
+                        : Icons.camera_alt)
+                    : Icons.lock,
+                size: 18),
+            label: Text(
+                unlocked
+                    ? (AppState.instance.completed.contains(sel)
+                        ? 'Ulangi Latihan'
+                        : 'Mulai Latihan')
+                    : 'Terkunci',
                 style: const TextStyle(fontWeight: FontWeight.w800)),
           ),
         ]),

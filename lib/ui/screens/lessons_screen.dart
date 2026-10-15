@@ -3,6 +3,7 @@ import '../data/saman_data.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import '../widgets/shell_animation.dart';
 import 'saman_detail_screen.dart';
 
 class LessonsScreen extends StatelessWidget {
@@ -18,14 +19,16 @@ class LessonsScreen extends StatelessWidget {
           title: 'Latihan',
           subtitle: '${s.completed.length} dari 3 variasi selesai',
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-          child: Column(children: [
-            for (var i = 0; i < samanVariations.length; i++) ...[
-              _variationCard(context, s, i),
-              const SizedBox(height: 12),
-            ],
-          ]),
+        SlideUpFade(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: Column(children: [
+              for (var i = 0; i < samanVariations.length; i++) ...[
+                _variationCard(context, s, i),
+                const SizedBox(height: 12),
+              ],
+            ]),
+          ),
         ),
       ]),
     );
