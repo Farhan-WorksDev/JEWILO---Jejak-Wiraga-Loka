@@ -12,7 +12,20 @@
           "package_name": "com.example.tari_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "840587110754-lod5pd6h2al75dqu2hgk41u230tpr7ve.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tari_app",
+            "certificate_hash": "2cf5cd5e99cab92011d29eec0bae432b7de3d354"
+          }
+        },
+        {
+          "client_id": "840587110754-1mqv0poipt1obpqo0ma7ipap4i7d3iiu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCaoskNrENuxmuzpw2x4vi0Idcpu7XLwQk"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "840587110754-1mqv0poipt1obpqo0ma7ipap4i7d3iiu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "840587110754-6i0tbo1sbojnagblj5h6qubjvmheii7t.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.tariApp"
+              }
+            }
+          ]
         }
       }
     }

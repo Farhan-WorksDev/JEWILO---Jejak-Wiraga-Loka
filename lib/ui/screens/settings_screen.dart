@@ -1,9 +1,13 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
 import '../widgets/shell_animation.dart';
 import '../theme.dart';
 import 'login_screen.dart';
+import 'shell.dart';
+import 'search_screen.dart';
+import 'create_sanggar_screen.dart';
 
 // ============================================================
 // DATA AKSESIBILITAS
@@ -261,6 +265,135 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 12),
 
+              // === MODE APLIKASI ===
+              _section('Mode Aplikasi', [
+                _tapRow(
+                  title: 'Mode saat ini',
+                  trailing: s.isOffline ? 'Offline' : 'Online',
+                  onTap: () async {
+                    final ok = await showDialog<bool>(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20)),
+                        title: Text(
+                            'Ganti ke Mode ${s.isOffline ? "Online" : "Offline"}?'),
+                        content: Text(s.isOffline
+                            ? 'Diperlukan internet & login. Fitur online akan aktif.'
+                            : 'Fitur online akan dinonaktifkan. Latihan tetap bisa dilakukan.'),
+                        actions: [
+                          TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Batal')),
+                          FilledButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              child: const Text('Ganti')),
+                        ],
+                      ),
+                    );
+                    if (ok != true) return;
+                    final goOffline = !s.isOffline;
+                    await s.setUserMode(goOffline ? 'offline' : 'online');
+                    if (!context.mounted) return;
+                    if (goOffline) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const Shell()),
+                        (route) => false,
+                      );
+                    } else {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                            builder: (_) => const LoginScreen()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                ),
+              ]),
+              const SizedBox(height: 12),
+
+              // === SANGGAR SAYA (khusus siswa) ===
+              if (!s.isPelatih) ...[
+                _section('Sanggar Saya', [
+                  if (s.inSanggar)
+                    _tapRow(
+                      title: s.currentSanggar?.name ?? 'Sanggar',
+                      trailing: 'Keluar',
+                      onTap: () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20)),
+                            title: const Text('Keluar dari sanggar?'),
+                            content: Text(
+                                'Kamu akan keluar dari ${s.currentSanggar?.name ?? "sanggar"}. Progres tetap tersimpan.'),
+                            actions: [
+                              TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('Batal')),
+                              FilledButton(
+                                  style: FilledButton.styleFrom(
+                                      backgroundColor: C.red),
+                                  onPressed: () =>
+                                      Navigator.pop(context, true),
+                                  child: const Text('Keluar')),
+                            ],
+                          ),
+                        );
+                        if (ok == true) {
+                          await s.setSanggarId(null);
+                        }
+                      },
+                    )
+                  else ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        'Belum gabung sanggar. Gabung untuk dapat modul & pantauan pelatih.',
+                        style: TextStyle(
+                            color: C.muted, fontSize: 12, height: 1.4),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: C.purple,
+                          side: const BorderSide(color: C.purple),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          if (s.isOffline) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Butuh Mode Online untuk cari sanggar.')),
+                            );
+                            return;
+                          }
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => const SearchScreen()),
+                          );
+                        },
+                        icon: const Icon(Icons.search, size: 18),
+                        label: const Text('Cari Sanggar',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ]),
+                const SizedBox(height: 12),
+              ],
+
               // === PENGINGAT (khusus siswa) ===
               if (!s.isPelatih) ...[
                 _section('Pengingat Harian', [
@@ -372,20 +505,90 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
 
-              if (s.isPelatih)
-                _section('Info Sanggar', [
-                  _tapRow(
-                    title: 'Kode sanggar',
-                    trailing: s.currentSanggar?.id ?? '-',
-                    onTap: () {},
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Bagikan kode ini ke murid supaya mereka bisa bergabung ke sanggar kamu.',
-                    style:
-                        TextStyle(color: C.muted, fontSize: 12, height: 1.4),
-                  ),
-                ]),
+              // === INFO SANGGAR (pelatih) ===
+              if (s.isPelatih) ...[
+                if (s.currentSanggar == null)
+                  _section('Sanggar', [
+                    _tapRow(
+                      title: 'Daftarkan Sanggar Baru',
+                      trailing: 'Mulai',
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CreateSanggarScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Daftarkan sanggar kamu untuk bisa kelola murid & share modul.',
+                      style: TextStyle(
+                          color: C.muted, fontSize: 12, height: 1.4),
+                    ),
+                  ])
+                else
+                  _section('Info Sanggar', [
+                    _tapRow(
+                      title: 'Nama sanggar',
+                      trailing: s.currentSanggar?.name ?? '-',
+                      onTap: () {},
+                    ),
+                    _tapRow(
+                      title: 'Kode sanggar',
+                      trailing: 'Salin',
+                      onTap: () async {
+                        final kode = s.currentSanggar?.id ?? '';
+                        if (kode.isEmpty) return;
+                        await Clipboard.setData(ClipboardData(text: kode));
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text('Kode "$kode" disalin ke clipboard')),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: C.purpleSoft,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.vpn_key,
+                            size: 18, color: C.purple),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Kode untuk dibagikan ke murid:',
+                                  style: TextStyle(
+                                      fontSize: 11.5,
+                                      color: C.muted,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 2),
+                              Text(s.currentSanggar?.id ?? '-',
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: C.purple,
+                                      letterSpacing: 2)),
+                            ],
+                          ),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Bagikan kode ini ke murid supaya mereka bisa bergabung ke sanggar kamu.',
+                      style: TextStyle(
+                          color: C.muted, fontSize: 12, height: 1.4),
+                    ),
+                  ]),
+              ],
 
               const SizedBox(height: 24),
 

@@ -226,6 +226,34 @@ class AppState extends ChangeNotifier {
   double get textScale => current?.textScale ?? 1.0;
   Map<String, int> get secondsByDay => current?.secondsByDay ?? {};
 
+  /// Set user aktif jadi pelatih + kaitin ke sanggar baru.
+  Future<void> setAsPelatih({
+    required String sanggarId,
+    required String sanggarName,
+    required String kode,
+  }) async {
+    final u = current;
+    if (u == null) return;
+
+    // Update role + sanggarId di UserData
+    u.role = 'pelatih';
+    u.sanggarId = sanggarId;
+
+    // Tambah sanggar ke list lokal (biar currentSanggar works)
+    if (!sanggarList.any((s) => s.id == sanggarId)) {
+      sanggarList.add(Sanggar(
+        id: sanggarId,
+        name: sanggarName,
+        pelatih: u.name,
+        siswa: [],
+        createdAt: DateTime.now().toIso8601String(),
+      ));
+    }
+
+    await _save();
+    notifyListeners();
+  }
+
   Sanggar? get currentSanggar {
     if (currentSanggarId == null) return null;
     try {
@@ -260,6 +288,15 @@ class AppState extends ChangeNotifier {
   String _generateSanggarId() {
     final u = _uuid.v4().replaceAll('-', '');
     return 'SANG-${u.substring(0, 4).toUpperCase()}';
+  }
+
+  /// Update sanggarId user aktif + save ke SharedPreferences.
+  Future<void> setSanggarId(String? sanggarId) async {
+    final u = current;
+    if (u == null) return;
+    u.sanggarId = sanggarId;
+    await _save();
+    notifyListeners();
   }
 
   Future<String> createProfile({

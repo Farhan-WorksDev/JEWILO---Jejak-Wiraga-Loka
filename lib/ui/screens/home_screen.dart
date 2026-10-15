@@ -58,11 +58,30 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Hi, ${s.name}',
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800)),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text('Hi, ${s.name}',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800)),
+                  if (s.isOffline) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: C.orange,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text('OFFLINE',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .5)),
+                    ),
+                  ],
+                ]),
                 Text(
                     s.practicedToday
                         ? 'Latihan hari ini sudah beres ✔'
@@ -122,7 +141,7 @@ class HomeScreen extends StatelessWidget {
             Icon(Icons.search, color: C.muted, size: 20),
             SizedBox(width: 8),
             Expanded(
-              child: Text('Cari tarian...',
+              child: Text('Cari tarian atau sanggar...',
                   style: TextStyle(color: C.muted, fontSize: 13)),
             ),
           ]),

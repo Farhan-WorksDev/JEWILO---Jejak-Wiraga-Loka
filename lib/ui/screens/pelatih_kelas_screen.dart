@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
+import 'create_sanggar_screen.dart';
 
 class PelatihKelasScreen extends StatelessWidget {
   const PelatihKelasScreen({super.key});
@@ -15,10 +16,7 @@ class PelatihKelasScreen extends StatelessWidget {
       builder: (context, _) {
         final sg = s.currentSanggar;
         if (sg == null) {
-          return Scaffold(
-            backgroundColor: C.bg,
-            body: const Center(child: Text('Sanggar tidak ditemukan')),
-          );
+          return _emptyState(context);
         }
 
         final profiles = s.muridProfiles;
@@ -67,7 +65,7 @@ class PelatihKelasScreen extends StatelessWidget {
             children: [
               GradientHeader(
                 title: 'Kelas',
-                subtitle: '${sg.name} • $totalMurid murid',
+                subtitle: '${sg.name} â€¢ $totalMurid murid',
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
@@ -119,7 +117,83 @@ class PelatihKelasScreen extends StatelessWidget {
 
   // ---- helpers ----
 
-  static bool _lamaTidakLatihan(UserData u) {
+  static Widget _emptyState(BuildContext context) {
+  return Scaffold(
+    backgroundColor: C.bg,
+    body: SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: C.purpleSoft,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.home_work_outlined,
+                    size: 56, color: C.purple),
+              ),
+              const SizedBox(height: 20),
+              const Text('Belum Punya Sanggar',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                      color: C.ink)),
+              const SizedBox(height: 8),
+              const Text(
+                'Daftarkan sanggar kamu untuk mulai mengelola murid dan '
+                'membagikan modul latihan.',
+                textAlign: TextAlign.center,
+                style:
+                    TextStyle(color: C.muted, fontSize: 13, height: 1.5),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: C.purple,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onPressed: () async {
+                    final result = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const CreateSanggarScreen(),
+                      ),
+                    );
+                    // Kalau berhasil, AppState.setAsPelatih udah di-set
+                    // di dalam CreateSanggarScreen.
+                    if (result == true && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('Sanggar berhasil didaftarkan!')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.add_business,
+                      color: Colors.white, size: 18),
+                  label: const Text('Daftarkan Sanggar',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+bool _lamaTidakLatihan(UserData u) {
     final d = _daysSince(u.lastDay);
     return d == null || d > 3;
   }
@@ -234,7 +308,7 @@ class PelatihKelasScreen extends StatelessWidget {
                       fontSize: 16)),
               const SizedBox(height: 2),
               Text(
-                '${u.xp} XP • ${u.streak} streak • ${_formatMenit(u.totalMinutes)}',
+                '${u.xp} XP â€¢ ${u.streak} streak â€¢ ${_formatMenit(u.totalMinutes)}',
                 style: TextStyle(
                     color: Colors.white.withValues(alpha: .85),
                     fontSize: 12),
@@ -351,7 +425,7 @@ class _KodeSanggarCard extends StatelessWidget {
   void _copy(BuildContext context) {
     Clipboard.setData(ClipboardData(text: sanggarId));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('✅ Kode "$sanggarId" dicopy')),
+      SnackBar(content: Text('âœ… Kode "$sanggarId" dicopy')),
     );
   }
 
