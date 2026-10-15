@@ -22,7 +22,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
       builder: (context, _) => ListView(padding: EdgeInsets.zero, children: [
         GradientHeader(
           title: 'Progress',
-          subtitle: 'Semangat latihan Tari Saman!',
+          subtitle: s.focusMode
+              ? 'Lihat hasil latihanmu'
+              : 'Semangat latihan Tari Saman!',
           bottom: _tabs(),
         ),
         Padding(
@@ -142,18 +144,24 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ]),
         ]),
       ),
-      const SizedBox(height: 12),
-      Row(children: [
-        Expanded(
-            child: _mini('Level ${s.level}', '${s.xp} XP',
-                Icons.emoji_events, C.orange, C.orangeSoft)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: _mini('Streak Terbaik', '${s.longest} hari',
-                Icons.military_tech, C.green, C.greenSoft)),
-      ]),
-      const SectionTitle('Jalur Gamifikasi'),
-      _paths(s),
+      // Saat Mode Fokus: sembunyikan mini card XP & streak terbaik
+      if (!s.focusMode) ...[
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+              child: _mini('Level ${s.level}', '${s.xp} XP',
+                  Icons.emoji_events, C.orange, C.orangeSoft)),
+          const SizedBox(width: 12),
+          Expanded(
+              child: _mini('Streak Terbaik', '${s.longest} hari',
+                  Icons.military_tech, C.green, C.greenSoft)),
+        ]),
+      ],
+      // Saat Mode Fokus: sembunyikan jalur gamifikasi
+      if (!s.focusMode) ...[
+        const SectionTitle('Jalur Gamifikasi'),
+        _paths(s),
+      ],
     ]);
   }
 
@@ -247,43 +255,49 @@ class _ProgressScreenState extends State<ProgressScreen> {
           ]),
         ]),
       ),
-      const SizedBox(height: 12),
-      CardBox(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Distribusi Mingguan',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 150,
-            child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              for (var i = 0; i < 7; i++)
-                Expanded(
-                  child:
-                      Column(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    Text(secs[i] == 0 ? '' : fmtDur(secs[i]),
-                        style: const TextStyle(
-                            fontSize: 9.5, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 5),
-                      height: 6 + 100 * (secs[i] / maxSec),
-                      decoration: BoxDecoration(
-                        color: monday.add(Duration(days: i)).day == now.day
-                            ? C.orange
-                            : C.purple.withValues(
-                                alpha: secs[i] == 0 ? .15 : .85),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(names[i],
-                        style: const TextStyle(fontSize: 11, color: C.muted)),
-                  ]),
-                ),
-            ]),
-          ),
-        ]),
-      ),
+      // Saat Mode Fokus: sembunyikan grafik distribusi mingguan
+      if (!s.focusMode) ...[
+        const SizedBox(height: 12),
+        CardBox(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Distribusi Mingguan',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 150,
+              child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                for (var i = 0; i < 7; i++)
+                  Expanded(
+                    child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(secs[i] == 0 ? '' : fmtDur(secs[i]),
+                              style: const TextStyle(
+                                  fontSize: 9.5, fontWeight: FontWeight.w700)),
+                          const SizedBox(height: 4),
+                          Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 5),
+                            height: 6 + 100 * (secs[i] / maxSec),
+                            decoration: BoxDecoration(
+                              color: monday.add(Duration(days: i)).day ==
+                                      now.day
+                                  ? C.orange
+                                  : C.purple.withValues(
+                                      alpha: secs[i] == 0 ? .15 : .85),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(names[i],
+                              style: const TextStyle(
+                                  fontSize: 11, color: C.muted)),
+                        ]),
+                  ),
+              ]),
+            ),
+          ]),
+        ),
+      ],
     ]);
   }
 
@@ -311,27 +325,30 @@ class _ProgressScreenState extends State<ProgressScreen> {
           _variationRow(context, s, i),
           const SizedBox(height: 10),
         ],
-        const SectionTitle('Lencana'),
-        s.badges.isEmpty
-            ? CardBox(
-                child: Row(children: [
-                  const Icon(Icons.workspace_premium_outlined,
-                      color: C.muted, size: 32),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                      child: Text(
-                          'Belum ada lencana. Selesaikan latihan pertamamu!',
-                          style: TextStyle(color: C.muted, fontSize: 13))),
-                ]),
-              )
-            : Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final e in badgeNames.entries)
-                    _badgeTile(e.key, e.value, s.badges.contains(e.key)),
-                ],
-              ),
+        // Saat Mode Fokus: sembunyikan badge gallery
+        if (!s.focusMode) ...[
+          const SectionTitle('Lencana'),
+          s.badges.isEmpty
+              ? CardBox(
+                  child: Row(children: [
+                    const Icon(Icons.workspace_premium_outlined,
+                        color: C.muted, size: 32),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                        child: Text(
+                            'Belum ada lencana. Selesaikan latihan pertamamu!',
+                            style: TextStyle(color: C.muted, fontSize: 13))),
+                  ]),
+                )
+              : Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final e in badgeNames.entries)
+                      _badgeTile(e.key, e.value, s.badges.contains(e.key)),
+                  ],
+                ),
+        ],
       ]);
 
   Widget _badgeTile(String key, String name, bool unlocked) => Container(
@@ -340,8 +357,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
         decoration: BoxDecoration(
           color: unlocked ? C.orangeSoft : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border:
-              Border.all(color: unlocked ? C.orange : C.line),
+          border: Border.all(color: unlocked ? C.orange : C.line),
         ),
         child: Column(children: [
           Icon(

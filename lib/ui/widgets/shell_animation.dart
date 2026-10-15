@@ -33,7 +33,6 @@ class ShellAnimation extends InheritedWidget {
 
 /// Sudah tidak dipakai. Dibiarkan sebagai passthrough supaya file lain
 /// (mis. common.dart) yang masih memanggilnya tidak error.
-/// Header sekarang otomatis statis karena body tidak dianimasi lagi.
 class ShellSlideCounter extends StatelessWidget {
   final Widget child;
   const ShellSlideCounter({super.key, required this.child});
@@ -43,6 +42,10 @@ class ShellSlideCounter extends StatelessWidget {
 }
 
 /// Bungkus isi halaman / hero. Header JANGAN dibungkus.
+///
+/// Saat pengguna menyalakan "Kurangi gerakan" di Pengaturan
+/// (`MediaQuery.disableAnimations` = true), widget ini langsung
+/// menampilkan konten tanpa animasi slide / fade.
 class SlideUpFade extends StatelessWidget {
   final Widget child;
   const SlideUpFade({super.key, required this.child});
@@ -51,6 +54,11 @@ class SlideUpFade extends StatelessWidget {
   Widget build(BuildContext context) {
     final anim = ShellAnimation.maybeOf(context);
     if (anim == null) return child;
+
+    // Mode Kurangi Gerakan → tampil instan
+    if (MediaQuery.of(context).disableAnimations) {
+      return child;
+    }
 
     return AnimatedBuilder(
       animation: anim.controller,

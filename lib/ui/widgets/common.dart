@@ -50,25 +50,30 @@ class GradientHeader extends StatelessWidget {
   }
 }
 
+/// Chip streak. Saat "Mode Fokus" aktif, chip ini tidak ditampilkan
+/// supaya tidak memicu tekanan "harus latihan tiap hari".
 class StreakChip extends StatelessWidget {
   const StreakChip({super.key});
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: AppState.instance,
-        builder: (_, _) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white24)),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.local_fire_department, color: C.orange, size: 18),
-            const SizedBox(width: 4),
-            Text('${AppState.instance.currentStreak} Hari',
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.w700)),
-          ]),
-        ),
+        builder: (_, _) {
+          if (AppState.instance.focusMode) return const SizedBox.shrink();
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white24)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.local_fire_department, color: C.orange, size: 18),
+              const SizedBox(width: 4),
+              Text('${AppState.instance.currentStreak} Hari',
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700)),
+            ]),
+          );
+        },
       );
 }
 

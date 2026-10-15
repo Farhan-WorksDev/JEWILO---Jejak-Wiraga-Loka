@@ -20,7 +20,7 @@ class HomeScreen extends StatelessWidget {
       builder: (context, _) => ListView(
         padding: EdgeInsets.zero,
         children: [
-          _header(context, s), // statis, tanpa animasi
+          _header(context, s),
           SlideUpFade(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
@@ -72,13 +72,17 @@ class HomeScreen extends StatelessWidget {
                         fontSize: 12.5)),
               ]),
             ),
-            _bellIcon(context),
+            // Bell icon disembunyikan saat Mode Fokus (notifikasi = distraksi)
+            if (!s.focusMode) _bellIcon(context),
           ]),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: _searchBar(context)),
-            const SizedBox(width: 10),
-            _streakChip(s),
+            // Streak chip disembunyikan saat Mode Fokus
+            if (!s.focusMode) ...[
+              const SizedBox(width: 10),
+              _streakChip(s),
+            ],
           ]),
         ]),
       );
@@ -175,11 +179,13 @@ class HomeScreen extends StatelessWidget {
                     letterSpacing: 1)),
           ),
           const Spacer(),
-          Text('${s.completed.length}/3',
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14)),
+          // Progress counter disembunyikan saat Mode Fokus
+          if (!s.focusMode)
+            Text('${s.completed.length}/3',
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14)),
         ]),
         const SizedBox(height: 16),
         const Text('Tari Saman',
@@ -247,7 +253,10 @@ class HomeScreen extends StatelessWidget {
           child: _actionCard(
             icon: Icons.insights,
             label: 'Lihat Progress',
-            sub: '${s.xp} XP • Lv ${s.level}',
+            // Saat Mode Fokus, ganti XP/Level dengan teks netral
+            sub: s.focusMode
+                ? 'Lihat hasil latihanmu'
+                : '${s.xp} XP • Lv ${s.level}',
             color: C.greenSoft,
             iconColor: C.green,
             onTap: () => goTab(2),

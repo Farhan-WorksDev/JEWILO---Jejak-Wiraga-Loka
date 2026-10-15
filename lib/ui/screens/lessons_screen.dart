@@ -17,15 +17,20 @@ class LessonsScreen extends StatelessWidget {
       builder: (context, _) => ListView(padding: EdgeInsets.zero, children: [
         GradientHeader(
           title: 'Latihan',
-          subtitle: '${s.completed.length} dari 3 variasi selesai',
+          subtitle: s.focusMode
+              ? 'Kerjakan satu per satu'
+              : '${s.completed.length} dari 3 variasi selesai',
         ),
         SlideUpFade(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
             child: Column(children: [
               for (var i = 0; i < samanVariations.length; i++) ...[
-                _variationCard(context, s, i),
-                const SizedBox(height: 12),
+                // Saat Mode Fokus: hanya tampilkan variasi yang sudah terbuka.
+                if (!s.focusMode || s.isUnlocked(i))
+                  _variationCard(context, s, i),
+                if (!s.focusMode || s.isUnlocked(i))
+                  const SizedBox(height: 12),
               ],
             ]),
           ),
@@ -96,18 +101,20 @@ class LessonsScreen extends StatelessWidget {
                                 color: C.muted, fontSize: 12)),
                       ]),
                 ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: C.orangeSoft,
-                      borderRadius: BorderRadius.circular(12)),
-                  child: Text('+${v.level.xp}',
-                      style: const TextStyle(
-                          color: C.orange,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12)),
-                ),
+                // XP badge disembunyikan saat Mode Fokus
+                if (!s.focusMode)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: C.orangeSoft,
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Text('+${v.level.xp}',
+                        style: const TextStyle(
+                            color: C.orange,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12)),
+                  ),
               ]),
               const SizedBox(height: 12),
               Text(v.focus,

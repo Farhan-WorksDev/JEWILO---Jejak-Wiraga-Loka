@@ -48,8 +48,14 @@ class _ShellState extends State<Shell> with SingleTickerProviderStateMixin {
 
   void _onTab(int i) {
     if (i == tab) return;
+    final reduce = AppState.instance.reduceMotion;
     setState(() => tab = i);
-    _ctrl.forward(from: 0);
+    if (reduce) {
+      // Mode Kurangi Gerakan → langsung tampil tanpa animasi
+      _ctrl.value = 1;
+    } else {
+      _ctrl.forward(from: 0);
+    }
   }
 
   @override

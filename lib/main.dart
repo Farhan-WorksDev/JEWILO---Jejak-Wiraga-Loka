@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 
+import 'ui/color_filters.dart';
 import 'ui/no_stretch_scroll_behavior.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/shell.dart';
@@ -13,9 +14,6 @@ Future<void> main() async {
   await AppState.instance.load();
   // ignore: discarded_futures
   ReminderService.instance.init();
-  // Kamera + AI TIDAK dinyalakan di sini lagi. Dinyalakan hanya saat masuk
-  // layar latihan (PracticeScreen) dan dimatikan saat keluar.
-
   runApp(const TariApp());
 }
 
@@ -23,15 +21,42 @@ class TariApp extends StatelessWidget {
   const TariApp({super.key});
   @override
   Widget build(BuildContext context) {
-    final loggedIn = AppState.instance.hasLoggedIn;
-    return MaterialApp(
-      title: 'Belajar Bareng - Tari Saman',
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(),
-      scrollBehavior: const NoStretchScrollBehavior(),
-      home: SplashScreen(
-        next: loggedIn ? const Shell() : const LoginScreen(),
-      ),
+    return ListenableBuilder(
+      listenable: AppState.instance,
+      builder: (context, _) {
+        final s = AppState.instance;
+        final loggedIn = s.hasLoggedIn;
+        return MaterialApp(
+          title: 'Belajar Bareng - Tari Saman',
+          debugShowCheckedModeBanner: false,
+          theme: buildTheme(
+            dyslexia: s.dyslexiaFont,
+            lowVision: s.lowVision,
+            reduceMotion: s.reduceMotion,
+          ),
+          scrollBehavior: const NoStretchScrollBehavior(),
+          builder: (context, child) {
+            Widget result = child!;
+            if (s.colorBlind) {
+              final filter = ColorFilters.filterFor(s.colorBlindType);
+              if (filter != null) {
+                result = ColorFiltered(colorFilter: filter, child: result);
+              }
+            }
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                // Ukuran tulisan dikendalikan slider di Pengaturan
+                textScaler: TextScaler.linear(s.textScale),
+                disableAnimations: s.reduceMotion,
+              ),
+              child: result,
+            );
+          },
+          home: SplashScreen(
+            next: loggedIn ? const Shell() : const LoginScreen(),
+          ),
+        );
+      },
     );
   }
 }

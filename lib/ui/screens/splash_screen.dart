@@ -1,8 +1,10 @@
 ﻿import 'dart:async';
 import 'package:flutter/material.dart';
+import '../state/app_state.dart';
 import '../theme.dart';
 
 /// Splash screen yang muncul 1.8 detik sebelum masuk ke Shell.
+/// Saat "Kurangi gerakan" aktif, splash langsung lewat tanpa animasi.
 class SplashScreen extends StatefulWidget {
   final Widget next;
   const SplashScreen({super.key, required this.next});
@@ -25,6 +27,20 @@ class _SplashScreenState extends State<SplashScreen>
     _scale = Tween(begin: 0.5, end: 1.0).animate(
         CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+
+    final reduce = AppState.instance.reduceMotion;
+
+    if (reduce) {
+      // Mode Kurangi Gerakan → splash langsung, tanpa animasi & delay
+      _ctrl.value = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => widget.next),
+        );
+      });
+      return;
+    }
 
     _ctrl.forward();
 

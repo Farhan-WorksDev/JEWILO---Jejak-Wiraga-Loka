@@ -9,9 +9,6 @@ const _uuid = Uuid();
 String dayKey(DateTime d) =>
     '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-// ============================================================
-// MODEL SANGGAR
-// ============================================================
 class Sanggar {
   final String id;
   final String name;
@@ -44,9 +41,6 @@ class Sanggar {
       );
 }
 
-// ============================================================
-// MODEL USER (per profil)
-// ============================================================
 class UserData {
   final String id;
   String name;
@@ -67,6 +61,15 @@ class UserData {
   String habitCue;
   bool metronome;
   bool voiceGuide;
+  // ---- Aksesibilitas ----
+  bool dyslexiaFont;
+  bool lowVision;
+  bool reduceMotion;
+  bool colorBlind;
+  String colorBlindType;
+  bool focusMode;
+  /// Skala teks manual: 0.85 – 1.5 (default 1.0).
+  double textScale;
   final String createdAt;
 
   UserData({
@@ -89,13 +92,19 @@ class UserData {
     this.habitCue = 'minum teh sore',
     this.metronome = true,
     this.voiceGuide = true,
+    this.dyslexiaFont = false,
+    this.lowVision = false,
+    this.reduceMotion = false,
+    this.colorBlind = false,
+    this.colorBlindType = 'deutan',
+    this.focusMode = false,
+    this.textScale = 1.0,
     required this.createdAt,
   })  : completed = completed ?? {},
         secondsByDay = secondsByDay ?? {},
         badges = badges ?? {},
         recentSearches = recentSearches ?? [];
 
-  // ---- Turunan per-user ----
   int get totalSeconds => secondsByDay.values.fold(0, (a, b) => a + b);
   int get totalMinutes => totalSeconds ~/ 60;
 
@@ -119,6 +128,13 @@ class UserData {
         'habitCue': habitCue,
         'metronome': metronome,
         'voiceGuide': voiceGuide,
+        'dyslexiaFont': dyslexiaFont,
+        'lowVision': lowVision,
+        'reduceMotion': reduceMotion,
+        'colorBlind': colorBlind,
+        'colorBlindType': colorBlindType,
+        'focusMode': focusMode,
+        'textScale': textScale,
         'createdAt': createdAt,
       };
 
@@ -142,38 +158,35 @@ class UserData {
         habitCue: m['habitCue'] ?? 'minum teh sore',
         metronome: m['metronome'] ?? true,
         voiceGuide: m['voiceGuide'] ?? true,
+        dyslexiaFont: m['dyslexiaFont'] ?? false,
+        lowVision: m['lowVision'] ?? false,
+        reduceMotion: m['reduceMotion'] ?? false,
+        colorBlind: m['colorBlind'] ?? false,
+        colorBlindType: m['colorBlindType'] ?? 'deutan',
+        focusMode: m['focusMode'] ?? false,
+        // Migration: user lama yang punya lowVision:true → otomatis textScale 1.25
+        textScale: (m['textScale'] as num?)?.toDouble() ??
+            ((m['lowVision'] == true) ? 1.25 : 1.0),
         createdAt: m['createdAt'] ?? DateTime.now().toIso8601String(),
       );
 }
 
-// ============================================================
-// APPSTATE — DOM-JS style, tapi per user pakai UUID
-// ============================================================
 class AppState extends ChangeNotifier {
   AppState._();
   static final AppState instance = AppState._();
 
   SharedPreferences? _p;
 
-  // === STATE GLOBAL ===
-  /// `Map<userId (UUID), UserData>`
   Map<String, UserData> users = {};
-
-  /// ID user yang aktif, null = belum login
   String? activeUserId;
-
-  /// Daftar sanggar (global)
   List<Sanggar> sanggarList = [];
 
-  // === AKSES ===
   UserData? get current => activeUserId != null ? users[activeUserId] : null;
   bool get hasLoggedIn => activeUserId != null;
 
-  /// Semua profil (buat list di login screen)
   List<UserData> get allUsers => users.values.toList()
     ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 
-  /// Semua profil siswa yang tergabung di sanggar yang sama dengan pelatih aktif.
   List<UserData> get muridProfiles {
     final sgId = currentSanggarId;
     if (sgId == null) return [];
@@ -182,7 +195,6 @@ class AppState extends ChangeNotifier {
         .toList();
   }
 
-  // ---- Proxy getter ke current ----
   String get name => current?.name ?? 'Penari';
   String get userRole => current?.role ?? 'siswa';
   String? get currentSanggarId => current?.sanggarId;
@@ -200,6 +212,13 @@ class AppState extends ChangeNotifier {
   String get habitCue => current?.habitCue ?? 'minum teh sore';
   bool get metronome => current?.metronome ?? true;
   bool get voiceGuide => current?.voiceGuide ?? true;
+  bool get dyslexiaFont => current?.dyslexiaFont ?? false;
+  bool get lowVision => current?.lowVision ?? false;
+  bool get reduceMotion => current?.reduceMotion ?? false;
+  bool get colorBlind => current?.colorBlind ?? false;
+  String get colorBlindType => current?.colorBlindType ?? 'deutan';
+  bool get focusMode => current?.focusMode ?? false;
+  double get textScale => current?.textScale ?? 1.0;
   Map<String, int> get secondsByDay => current?.secondsByDay ?? {};
 
   Sanggar? get currentSanggar {
@@ -213,7 +232,6 @@ class AppState extends ChangeNotifier {
 
   bool get inSanggar => currentSanggar != null;
 
-  // ---- Turunan ----
   double get progress => completed.length / samanVariations.length;
   bool get allDone => completed.length == samanVariations.length;
   int get level => xp ~/ 100 + 1;
@@ -234,17 +252,11 @@ class AppState extends ChangeNotifier {
   String get reminderLabel =>
       '${reminderHour.toString().padLeft(2, '0')}:${reminderMinute.toString().padLeft(2, '0')}';
 
-  // === ID GENERATORS (UUID v4) ===
   String _generateSanggarId() {
-    // SANG-XXYY (readable, tapi unik dari UUID)
     final u = _uuid.v4().replaceAll('-', '');
     return 'SANG-${u.substring(0, 4).toUpperCase()}';
   }
 
-  // ============================================================
-  // LOGIN
-  // ============================================================
-  /// Buat profil BARU — selalu bikin UUID baru
   Future<String> createProfile({
     required String userName,
     required String role,
@@ -280,7 +292,6 @@ class AppState extends ChangeNotifier {
     return newId;
   }
 
-  /// Login ke profil yang SUDAH ada (dipilih dari list)
   Future<void> loginAs(String userId) async {
     if (!users.containsKey(userId)) return;
     activeUserId = userId;
@@ -288,7 +299,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Cari user by name (buat auto-suggest)
   List<UserData> findUsersByName(String query) {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return [];
@@ -324,9 +334,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================================
-  // SANGGAR MANAGEMENT
-  // ============================================================
   void addSiswa(String nama) {
     final v = nama.trim();
     if (v.isEmpty) return;
@@ -355,9 +362,6 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // ============================================================
-  // PROGRESS
-  // ============================================================
   Future<void> recordSession({required int seconds, int? variationIndex}) async {
     final u = current;
     if (u == null) return;
@@ -391,9 +395,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================================
-  // SEARCH
-  // ============================================================
   void addSearch(String q) {
     final u = current;
     if (u == null) return;
@@ -420,9 +421,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================================
-  // UPDATE HELPERS
-  // ============================================================
   void update(void Function() change) {
     change();
     _save();
@@ -437,6 +435,14 @@ class AppState extends ChangeNotifier {
   set metronome(bool v) => current?.metronome = v;
   set voiceGuide(bool v) => current?.voiceGuide = v;
   set name(String v) => current?.name = v;
+  set dyslexiaFont(bool v) => current?.dyslexiaFont = v;
+  set lowVision(bool v) => current?.lowVision = v;
+  set reduceMotion(bool v) => current?.reduceMotion = v;
+  set colorBlind(bool v) => current?.colorBlind = v;
+  set colorBlindType(String v) => current?.colorBlindType = v;
+  set focusMode(bool v) => current?.focusMode = v;
+  set textScale(double v) =>
+      current?.textScale = v.clamp(0.85, 1.5).toDouble();
 
   Future<void> resetProgress() async {
     final u = current;
@@ -453,7 +459,6 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Hapus profil user tertentu
   Future<void> deleteUser(String userId) async {
     users.remove(userId);
     if (activeUserId == userId) activeUserId = null;
@@ -469,14 +474,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ============================================================
-  // STORAGE
-  // ============================================================
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
     final raw = _p!.getString('app_state_v3');
     if (raw == null) {
-      // Coba migration dari v2 (nama-based)
       await _migrateFromV2();
       return;
     }
@@ -503,7 +504,6 @@ class AppState extends ChangeNotifier {
     try {
       final m = jsonDecode(raw) as Map<String, dynamic>;
       final usersRaw = m['users'] as Map<String, dynamic>? ?? {};
-      // Convert nama-keyed → UUID-keyed
       users = {};
       for (final entry in usersRaw.entries) {
         final data = Map<String, dynamic>.from(entry.value);
@@ -512,7 +512,7 @@ class AppState extends ChangeNotifier {
         data['createdAt'] = DateTime.now().toIso8601String();
         users[newId] = UserData.fromJson(data);
       }
-      activeUserId = null; // paksa login ulang
+      activeUserId = null;
       final sgRaw = m['sanggarList'] as List? ?? [];
       sanggarList = sgRaw
           .map((e) => Sanggar.fromJson(Map<String, dynamic>.from(e)))
