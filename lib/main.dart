@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'ui/color_filters.dart';
 import 'ui/no_stretch_scroll_behavior.dart';
-import 'ui/screens/login_screen.dart';
+import 'ui/screens/mode_selection_screen.dart';
 import 'ui/screens/shell.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/services/reminder_service.dart';
@@ -33,7 +33,6 @@ class TariApp extends StatelessWidget {
       listenable: AppState.instance,
       builder: (context, _) {
         final s = AppState.instance;
-        final loggedIn = s.hasLoggedIn;
         return MaterialApp(
           title: 'Belajar Bareng - Tari Saman',
           debugShowCheckedModeBanner: false,
@@ -61,7 +60,9 @@ class TariApp extends StatelessWidget {
             );
           },
           home: SplashScreen(
-            next: loggedIn ? const Shell() : const LoginScreen(),
+            next: (s.hasLoggedIn || s.isOffline)
+              ? const Shell()
+              : const ModeSelectionScreen(),
           ),
         );
       },

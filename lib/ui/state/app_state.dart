@@ -177,6 +177,11 @@ class AppState extends ChangeNotifier {
 
   SharedPreferences? _p;
 
+  /// Mode yang dipilih user: 'online' atau 'offline'.
+  String _userMode = 'online';
+  String get userMode => _userMode;
+  bool get isOffline => _userMode == 'offline';
+
   Map<String, UserData> users = {};
   String? activeUserId;
   List<Sanggar> sanggarList = [];
@@ -474,8 +479,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setUserMode(String mode) async {
+    _userMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('userMode', mode);
+    notifyListeners();
+  }
+
   Future<void> load() async {
     _p = await SharedPreferences.getInstance();
+    _userMode = _p!.getString('userMode') ?? 'online';
     final raw = _p!.getString('app_state_v3');
     if (raw == null) {
       await _migrateFromV2();
