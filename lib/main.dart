@@ -1,5 +1,7 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
+import 'firebase_options.dart';
 import 'ui/color_filters.dart';
 import 'ui/no_stretch_scroll_behavior.dart';
 import 'ui/screens/login_screen.dart';
@@ -11,6 +13,12 @@ import 'ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Init Firebase (auth, firestore, messaging)
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   await AppState.instance.load();
   // ignore: discarded_futures
   ReminderService.instance.init();

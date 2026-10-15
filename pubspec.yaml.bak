@@ -1,0 +1,43 @@
+﻿name: tari_app
+description: "Aplikasi Klasifikasi Gerakan Tari Offline"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.13.5 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  uuid: ^4.5.1
+  cupertino_icons: ^1.0.8
+  tflite_flutter: ^0.12.1
+  camera: ^0.12.1
+  shared_preferences: ^2.3.0
+  permission_handler: ^11.3.1
+  path_provider: ^2.1.4
+  flutter_local_notifications: ^17.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/dance_detector.tflite
+    - assets/models/label_map.json
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
+          weight: 800

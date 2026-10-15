@@ -1,7 +1,8 @@
-﻿plugins {
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -39,6 +40,15 @@ kotlin {
 }
 
 dependencies {
+    // Firebase BOM — biar versi Firebase konsisten
+    implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
+
+    // Firebase packages
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-messaging")
+
     // MediaPipe — pake versi stabil yang gak konflik protobuf
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
 

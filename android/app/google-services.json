@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "840587110754",
+    "project_id": "belajar-bareng-tari",
+    "storage_bucket": "belajar-bareng-tari.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:840587110754:android:023132a3d34edbaf4c643b",
+        "android_client_info": {
+          "package_name": "com.example.tari_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCaoskNrENuxmuzpw2x4vi0Idcpu7XLwQk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
