@@ -39,3 +39,6 @@ Thumbs.db
 
 *.hprof
 android/*.hprof
+
+# Backup files
+*.bak
