@@ -1,8 +1,10 @@
-﻿import 'dart:convert';
+﻿import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../data/saman_data.dart';
+import '../services/auth_service.dart';
 
 const _uuid = Uuid();
 
@@ -176,6 +178,7 @@ class AppState extends ChangeNotifier {
   static final AppState instance = AppState._();
 
   SharedPreferences? _p;
+  StreamSubscription? _userDocSub;
 
   /// Mode yang dipilih user: 'online' atau 'offline'.
   String _userMode = 'online';
@@ -370,9 +373,64 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Listen perubahan dokumen user di Firestore.
+  /// Dipanggil setelah login / saat app start.
+  Future<void> listenToMyFirestoreDoc() async {
+    final uid = AuthService.instance.current?.uid;
+    if (uid == null) return;
+
+    await _userDocSub?.cancel();
+    _userDocSub = AuthService.instance
+        .streamUserDoc(uid)
+        .listen((data) {
+      if (data == null) return;
+      final u = current;
+      if (u == null) return;
+
+      // Sync sanggarId — kalau di-kick pelatih, jadi null
+      final remoteSanggarId = data['sanggarId'] as String?;
+      if (remoteSanggarId != u.sanggarId) {
+        u.sanggarId = remoteSanggarId;
+        _save();
+        notifyListeners();
+        debugPrint('synced sanggarId: $remoteSanggarId');
+      }
+
+      // Sync role (kalau berubah dari siswa -> pelatih)
+      final remoteRole = data['role'] as String?;
+      if (remoteRole != null && remoteRole != u.role) {
+        u.role = remoteRole;
+        _save();
+        notifyListeners();
+      }
+    });
+  }
+
+  /// Stop Firestore listener (dipanggil saat logout).
+  void stopListening() {
+    _userDocSub?.cancel();
+    _userDocSub = null;
+  }
+
   Future<void> logout() async {
-    await _save();
+    // 1. Stop Firestore listener
+    stopListening();
+
+    // 2. Sign out dari Firebase Auth
+    try {
+      await AuthService.instance.signOut();
+    } catch (_) {}
+
+    // 3. Reset state lokal
     activeUserId = null;
+
+    // 4. Clear SharedPreferences kecuali userMode
+    if (_p != null) {
+      final mode = _p!.getString('userMode');
+      await _p!.clear();
+      if (mode != null) await _p!.setString('userMode', mode);
+    }
+
     notifyListeners();
   }
 
@@ -435,6 +493,24 @@ class AppState extends ChangeNotifier {
     }
     await _save();
     notifyListeners();
+
+    // Auto-sync ke Firestore (kalau mode online + login)
+    if (_userMode == 'online' &&
+        AuthService.instance.isSignedIn &&
+        u.sanggarId != null) {
+      final totalSec =
+          u.secondsByDay.values.fold<int>(0, (a, b) => a + b);
+      AuthService.instance.syncUserStats(
+        xp: u.xp,
+        streak: u.streak,
+        longest: u.longest,
+        totalMinutes: (totalSec / 60).round(),
+        completedCount: u.completed.length,
+        lastDay: u.lastDay,
+        badges: u.badges.toList(),
+        secondsByDay: u.secondsByDay,
+      );
+    }
   }
 
   void addSearch(String q) {

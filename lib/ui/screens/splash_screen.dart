@@ -94,13 +94,13 @@ class _SplashScreenState extends State<SplashScreen>
                         size: 72, color: Colors.white),
                   ),
                   const SizedBox(height: 24),
-                  const Text('Belajar Bareng',
+                  const Text('JEWILO',
                       style: TextStyle(
                           color: Colors.white,
                           fontSize: 26,
                           fontWeight: FontWeight.w800)),
                   const SizedBox(height: 6),
-                  Text('Eksplorasi Seni Tari Nusantara',
+                  Text('Jejak • Wiraga • Loka',
                       style: TextStyle(
                           color: Colors.white.withValues(alpha: .75),
                           fontSize: 13)),

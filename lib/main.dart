@@ -20,6 +20,10 @@ Future<void> main() async {
   );
 
   await AppState.instance.load();
+
+  // Start listener Firestore (kalau user udah login dari session sebelumnya)
+  // ignore: discarded_futures
+  AppState.instance.listenToMyFirestoreDoc();
   // ignore: discarded_futures
   ReminderService.instance.init();
   runApp(const TariApp());
@@ -34,7 +38,7 @@ class TariApp extends StatelessWidget {
       builder: (context, _) {
         final s = AppState.instance;
         return MaterialApp(
-          title: 'Belajar Bareng - Tari Saman',
+          title: 'JEWILO - Jejak Wiraga Loka',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(
             dyslexia: s.dyslexiaFont,

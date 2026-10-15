@@ -47,7 +47,7 @@ class ModeSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               const Center(
-                child: Text('Belajar Bareng',
+                child: Text('JEWILO',
                     style: TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.w800,
@@ -55,7 +55,7 @@ class ModeSelectionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Center(
-                child: Text('Eksplorasi Seni Tari Nusantara',
+                child: Text('Jejak • Wiraga • Loka',
                     style: TextStyle(color: C.muted, fontSize: 13)),
               ),
               const SizedBox(height: 40),

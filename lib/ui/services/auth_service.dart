@@ -158,6 +158,7 @@ class AuthService {
 
     try {
       await _fire.collection('users').doc(uid).set({
+        'role': 'siswa',
         'sanggarId': sanggar['docId'],
         'sanggarName': sanggar['name'] ?? '',
         'kodeSanggar': sanggar['kode'] ?? '',
@@ -234,7 +235,8 @@ class AuthService {
     }
 
     try {
-      final ref = await _fire.collection('sanggar').add({
+      final ref = _fire.collection('sanggar').doc(kode);
+      await ref.set({
         'name': nama.trim(),
         'region': region.trim(),
         'alamat': alamat.trim(),
@@ -287,6 +289,121 @@ class AuthService {
     }
   }
 
+  /// Sync data user (XP, streak, completed, dll) ke Firestore.
+  /// Dipanggil otomatis tiap selesai latihan.
+  Future<bool> syncUserStats({
+    required int xp,
+    required int streak,
+    required int longest,
+    required int totalMinutes,
+    required int completedCount,
+    String? lastDay,
+    List<String>? badges,
+    Map<String, int>? secondsByDay,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      final ref = _fire.collection('users').doc(uid);
+
+      // Fetch remote dulu biar bisa merge (anti data-loss kalau ganti device)
+      final remoteSnap = await ref.get();
+      final remote = remoteSnap.data() ?? {};
+
+      // Merge numeric: ambil yang lebih tinggi
+      final remoteXp = (remote['xp'] ?? 0) as int;
+      final remoteStreak = (remote['streak'] ?? 0) as int;
+      final remoteLongest = (remote['longest'] ?? 0) as int;
+      final remoteTotal = (remote['totalMinutes'] ?? 0) as int;
+      final remoteCompleted = (remote['completedCount'] ?? 0) as int;
+
+      final data = <String, dynamic>{
+        'xp': xp > remoteXp ? xp : remoteXp,
+        'streak': streak > remoteStreak ? streak : remoteStreak,
+        'longest': longest > remoteLongest ? longest : remoteLongest,
+        'totalMinutes':
+            totalMinutes > remoteTotal ? totalMinutes : remoteTotal,
+        'completedCount': completedCount > remoteCompleted
+            ? completedCount
+            : remoteCompleted,
+        'lastDay': lastDay,
+        'statsUpdatedAt': FieldValue.serverTimestamp(),
+      };
+
+      // Merge badges: union (ambil semua dari remote + lokal)
+      if (badges != null) {
+        final remoteBadges = List<String>.from(remote['badges'] ?? []);
+        final mergedBadges = <String>{...remoteBadges, ...badges}.toList();
+        data['badges'] = mergedBadges;
+      }
+
+      // Merge secondsByDay: max per hari, limit 30 hari terakhir
+      if (secondsByDay != null) {
+        final remoteSec =
+            Map<String, int>.from(remote['secondsByDay'] ?? {});
+        final mergedSec = <String, int>{};
+        for (final k in {...remoteSec.keys, ...secondsByDay.keys}) {
+          final a = remoteSec[k] ?? 0;
+          final b = secondsByDay[k] ?? 0;
+          mergedSec[k] = a > b ? a : b;
+        }
+        final keys = mergedSec.keys.toList()..sort();
+        final recent =
+            keys.length > 30 ? keys.sublist(keys.length - 30) : keys;
+        data['secondsByDay'] = {
+          for (final k in recent) k: mergedSec[k] ?? 0
+        };
+      }
+
+      await ref.set(data, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('syncUserStats error: $e');
+      return false;
+    }
+  }
+
+  /// Fetch semua murid di sanggar tertentu (real-time).
+  Stream<List<Map<String, dynamic>>> streamMuridBySanggar(
+      String sanggarId) {
+    return _fire
+        .collection('users')
+        .where('sanggarId', isEqualTo: sanggarId)
+        .where('role', isEqualTo: 'siswa')
+        .snapshots()
+        .map((snap) => snap.docs.map((d) {
+              final data = d.data();
+              data['uid'] = d.id;
+              return data;
+            }).toList());
+  }
+
+  /// Kick murid dari sanggar (hapus sanggarId dari user).
+  Future<bool> kickMurid(String uid) async {
+    try {
+      await _fire.collection('users').doc(uid).set({
+        'sanggarId': null,
+        'sanggarName': null,
+        'kodeSanggar': null,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      return true;
+    } catch (e) {
+      debugPrint('kickMurid error: $e');
+      return false;
+    }
+  }
+
   User? get current => _auth.currentUser;
+  /// Stream dokumen user dari Firestore (real-time).
+  /// Dipakai AppState.listenToMyFirestoreDoc() buat handle kick.
+  Stream<Map<String, dynamic>?> streamUserDoc(String uid) {
+    return _fire.collection('users').doc(uid).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      final data = snap.data()!;
+      data['uid'] = snap.id;
+      return data;
+    });
+  }
   bool get isSignedIn => _auth.currentUser != null;
 }

@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
@@ -15,195 +16,210 @@ class PelatihKelasScreen extends StatelessWidget {
       listenable: s,
       builder: (context, _) {
         final sg = s.currentSanggar;
-        if (sg == null) {
-          return _emptyState(context);
-        }
+        if (sg == null) return _emptyState(context);
 
-        final profiles = s.muridProfiles;
+        return StreamBuilder<List<Map<String, dynamic>>>(
+          stream: AuthService.instance.streamMuridBySanggar(sg.id),
+          builder: (context, snapshot) {
+            final firestoreMurid = snapshot.data ?? [];
+            final loading = snapshot.connectionState ==
+                    ConnectionState.waiting &&
+                !snapshot.hasData;
 
-        // Jumlah murid unik (gabungan nama di sg.siswa + profil yang gabung via kode)
-        final names = <String>{};
-        for (final p in profiles) {
-          names.add(p.name.toLowerCase());
-        }
-        for (final n in sg.siswa) {
-          names.add(n.toLowerCase());
-        }
-        final totalMurid = names.length;
+            return _buildBody(context, s, sg, firestoreMurid, loading);
+          },
+        );
+      },
+    );
+  }
 
-        final totalMenit =
-            profiles.fold<int>(0, (a, p) => a + p.totalMinutes);
-        final avgStreak = profiles.isEmpty
-            ? 0
-            : (profiles.fold<int>(0, (a, p) => a + p.streak) /
-                    profiles.length)
-                .round();
+  Widget _buildBody(
+    BuildContext context,
+    AppState s,
+    Sanggar sg,
+    List<Map<String, dynamic>> firestoreMurid,
+    bool loading,
+  ) {
+    final totalMurid = firestoreMurid.length;
 
-        final today = dayKey(DateTime.now());
-        final sudahHariIni = profiles
-            .where((p) => (p.secondsByDay[today] ?? 0) > 0)
-            .length;
+    final totalMenit = firestoreMurid.fold<int>(
+        0, (a, m) => a + ((m['totalMinutes'] ?? 0) as int));
+    final avgStreak = firestoreMurid.isEmpty
+        ? 0
+        : (firestoreMurid.fold<int>(
+                    0, (a, m) => a + ((m['streak'] ?? 0) as int)) /
+                firestoreMurid.length)
+            .round();
 
-        UserData? palingAktif;
-        for (final p in profiles) {
-          if (palingAktif == null || p.xp > palingAktif.xp) {
-            palingAktif = p;
-          }
-        }
+    final today = dayKey(DateTime.now());
+    final sudahHariIni = firestoreMurid
+        .where((m) => (m['lastDay'] ?? '') == today)
+        .length;
 
-        final perluPerhatian = profiles.where(_lamaTidakLatihan).toList()
-          ..sort((a, b) {
-            final da = _daysSince(a.lastDay) ?? 999;
-            final db = _daysSince(b.lastDay) ?? 999;
-            return db.compareTo(da);
-          });
+    Map<String, dynamic>? palingAktif;
+    for (final m in firestoreMurid) {
+      final xp = (m['xp'] ?? 0) as int;
+      if (palingAktif == null ||
+          xp > ((palingAktif['xp'] ?? 0) as int)) {
+        palingAktif = m;
+      }
+    }
 
-        return Scaffold(
-          backgroundColor: C.bg,
-          body: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              GradientHeader(
-                title: 'Kelas',
-                subtitle: '${sg.name} â€¢ $totalMurid murid',
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _KodeSanggarCard(sanggarId: sg.id),
-                    const SizedBox(height: 20),
-                    _statGrid(
-                      murid: totalMurid,
-                      withProfil: profiles.length,
-                      menit: totalMenit,
-                      avgStreak: avgStreak,
-                      sudahHariIni: sudahHariIni,
-                    ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Murid Paling Aktif',
+    final perluPerhatian = firestoreMurid
+        .where(_lamaTidakLatihanMap)
+        .toList()
+      ..sort((a, b) {
+        final da = _daysSince(a['lastDay'] as String?) ?? 999;
+        final db = _daysSince(b['lastDay'] as String?) ?? 999;
+        return db.compareTo(da);
+      });
+
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          GradientHeader(
+            title: 'Kelas',
+            subtitle:
+                '${sg.name} • $totalMurid murid${loading ? " (memuat...)" : ""}',
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _KodeSanggarCard(sanggarId: sg.id),
+                const SizedBox(height: 20),
+                _statGrid(
+                  murid: totalMurid,
+                  menit: totalMenit,
+                  avgStreak: avgStreak,
+                  sudahHariIni: sudahHariIni,
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Murid Paling Aktif',
+                  style:
+                      TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                ),
+                const SizedBox(height: 10),
+                _palingAktifCard(palingAktif),
+                const SizedBox(height: 24),
+                Row(children: [
+                  const Expanded(
+                    child: Text(
+                      'Perlu Perhatian',
                       style: TextStyle(
                           fontWeight: FontWeight.w800, fontSize: 15),
                     ),
-                    const SizedBox(height: 10),
-                    _palingAktifCard(palingAktif),
-                    const SizedBox(height: 24),
-                    Row(children: [
-                      const Expanded(
-                        child: Text(
-                          'Perlu Perhatian',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800, fontSize: 15),
-                        ),
-                      ),
-                      if (perluPerhatian.isNotEmpty)
-                        Pill('${perluPerhatian.length}',
-                            fg: C.red,
-                            bg: C.red.withValues(alpha: .12)),
-                    ]),
-                    const SizedBox(height: 10),
-                    _perluPerhatianCard(perluPerhatian),
-                  ],
-                ),
-              ),
-            ],
+                  ),
+                  if (perluPerhatian.isNotEmpty)
+                    Pill('${perluPerhatian.length}',
+                        fg: C.red, bg: C.red.withValues(alpha: .12)),
+                ]),
+                const SizedBox(height: 10),
+                _perluPerhatianCard(perluPerhatian),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
   // ---- helpers ----
 
   static Widget _emptyState(BuildContext context) {
-  return Scaffold(
-    backgroundColor: C.bg,
-    body: SafeArea(
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: C.purpleSoft,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.home_work_outlined,
-                    size: 56, color: C.purple),
-              ),
-              const SizedBox(height: 20),
-              const Text('Belum Punya Sanggar',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18,
-                      color: C.ink)),
-              const SizedBox(height: 8),
-              const Text(
-                'Daftarkan sanggar kamu untuk mulai mengelola murid dan '
-                'membagikan modul latihan.',
-                textAlign: TextAlign.center,
-                style:
-                    TextStyle(color: C.muted, fontSize: 13, height: 1.5),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: C.purple,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: C.purpleSoft,
+                    shape: BoxShape.circle,
                   ),
-                  onPressed: () async {
-                    final result = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CreateSanggarScreen(),
-                      ),
-                    );
-                    // Kalau berhasil, AppState.setAsPelatih udah di-set
-                    // di dalam CreateSanggarScreen.
-                    if (result == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('Sanggar berhasil didaftarkan!')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.add_business,
-                      color: Colors.white, size: 18),
-                  label: const Text('Daftarkan Sanggar',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15)),
+                  child: const Icon(Icons.home_work_outlined,
+                      size: 56, color: C.purple),
                 ),
-              ),
-            ],
+                const SizedBox(height: 20),
+                const Text('Belum Punya Sanggar',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        color: C.ink)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Daftarkan sanggar kamu untuk mulai mengelola murid dan '
+                  'membagikan modul latihan.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: C.muted, fontSize: 13, height: 1.5),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: C.purple,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () async {
+                      final result = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CreateSanggarScreen(),
+                        ),
+                      );
+                      if (result == true && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content:
+                                  Text('Sanggar berhasil didaftarkan!')),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.add_business,
+                        color: Colors.white, size: 18),
+                    label: const Text('Daftarkan Sanggar',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15)),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-bool _lamaTidakLatihan(UserData u) {
-    final d = _daysSince(u.lastDay);
+  static bool _lamaTidakLatihanMap(Map<String, dynamic> m) {
+    final d = _daysSince(m['lastDay'] as String?);
     return d == null || d > 3;
   }
 
   static int? _daysSince(String? dayStr) {
-    if (dayStr == null) return null;
-    final t = DateTime.now();
-    final today = DateTime(t.year, t.month, t.day);
-    final l = DateTime.parse(dayStr);
-    return today.difference(DateTime(l.year, l.month, l.day)).inDays;
+    if (dayStr == null || dayStr.isEmpty) return null;
+    try {
+      final t = DateTime.now();
+      final today = DateTime(t.year, t.month, t.day);
+      final l = DateTime.parse(dayStr);
+      return today.difference(DateTime(l.year, l.month, l.day)).inDays;
+    } catch (_) {
+      return null;
+    }
   }
 
   static String _formatMenit(int m) {
@@ -216,7 +232,6 @@ bool _lamaTidakLatihan(UserData u) {
 
   Widget _statGrid({
     required int murid,
-    required int withProfil,
     required int menit,
     required int avgStreak,
     required int sudahHariIni,
@@ -227,14 +242,13 @@ bool _lamaTidakLatihan(UserData u) {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 10,
       crossAxisSpacing: 10,
-      // Tinggi kartu fixed, biar gak overflow di lebar layar apapun
       mainAxisExtent: 132,
       children: [
         _StatCard(
           icon: Icons.people_outline,
           label: 'Total Murid',
           value: '$murid',
-          sub: '$withProfil punya profil',
+          sub: 'online via kode',
           color: C.purple,
         ),
         _StatCard(
@@ -255,25 +269,30 @@ bool _lamaTidakLatihan(UserData u) {
           icon: Icons.bolt_outlined,
           label: 'Latihan Hari Ini',
           value: '$sudahHariIni',
-          sub: 'dari $withProfil murid',
+          sub: 'dari $murid murid',
           color: Colors.green,
         ),
       ],
     );
   }
 
-  Widget _palingAktifCard(UserData? u) {
-    if (u == null) {
+  Widget _palingAktifCard(Map<String, dynamic>? m) {
+    if (m == null) {
       return _emptyCard(
         icon: Icons.emoji_events_outlined,
-        title: 'Belum ada murid dengan profil',
-        sub: 'Murid yang gabung lewat kode akan muncul di sini',
+        title: 'Belum ada murid',
+        sub: 'Bagikan kode sanggar biar murid gabung',
       );
     }
-    final d = _daysSince(u.lastDay);
+    final name = (m['nama'] ?? 'Siswa').toString();
+    final xp = (m['xp'] ?? 0) as int;
+    final streak = (m['streak'] ?? 0) as int;
+    final totalMinutes = (m['totalMinutes'] ?? 0) as int;
+    final d = _daysSince(m['lastDay'] as String?);
     final lastLabel = d == null
         ? 'belum pernah latihan'
         : (d == 0 ? 'latihan hari ini' : '$d hari lalu');
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -301,14 +320,14 @@ bool _lamaTidakLatihan(UserData u) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(u.name,
+              Text(name,
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w800,
                       fontSize: 16)),
               const SizedBox(height: 2),
               Text(
-                '${u.xp} XP â€¢ ${u.streak} streak â€¢ ${_formatMenit(u.totalMinutes)}',
+                '$xp XP • $streak streak • ${_formatMenit(totalMinutes)}',
                 style: TextStyle(
                     color: Colors.white.withValues(alpha: .85),
                     fontSize: 12),
@@ -327,7 +346,7 @@ bool _lamaTidakLatihan(UserData u) {
     );
   }
 
-  Widget _perluPerhatianCard(List<UserData> list) {
+  Widget _perluPerhatianCard(List<Map<String, dynamic>> list) {
     if (list.isEmpty) {
       return _emptyCard(
         icon: Icons.check_circle_outline,
@@ -336,16 +355,18 @@ bool _lamaTidakLatihan(UserData u) {
       );
     }
     return Column(children: [
-      for (final u in list.take(5)) ...[
-        _perhatianTile(u),
+      for (final m in list.take(5)) ...[
+        _perhatianTile(m),
         const SizedBox(height: 8),
       ],
     ]);
   }
 
-  Widget _perhatianTile(UserData u) {
-    final d = _daysSince(u.lastDay);
-    final label = d == null ? 'Belum pernah latihan' : '$d hari tanpa latihan';
+  Widget _perhatianTile(Map<String, dynamic> m) {
+    final name = (m['nama'] ?? 'Siswa').toString();
+    final d = _daysSince(m['lastDay'] as String?);
+    final label =
+        d == null ? 'Belum pernah latihan' : '$d hari tanpa latihan';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -370,12 +391,13 @@ bool _lamaTidakLatihan(UserData u) {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(u.name,
+              Text(name,
                   style: const TextStyle(
                       fontWeight: FontWeight.w700, fontSize: 13.5)),
               const SizedBox(height: 2),
               Text(label,
-                  style: const TextStyle(color: C.muted, fontSize: 11.5)),
+                  style: const TextStyle(
+                      color: C.muted, fontSize: 11.5)),
             ],
           ),
         ),
@@ -425,7 +447,7 @@ class _KodeSanggarCard extends StatelessWidget {
   void _copy(BuildContext context) {
     Clipboard.setData(ClipboardData(text: sanggarId));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('âœ… Kode "$sanggarId" dicopy')),
+      SnackBar(content: Text('✅ Kode "$sanggarId" dicopy')),
     );
   }
 
@@ -483,12 +505,13 @@ class _KodeSanggarCard extends StatelessWidget {
               style:
                   IconButton.styleFrom(backgroundColor: Colors.white24),
               onPressed: () => _copy(context),
-              icon: const Icon(Icons.copy, color: Colors.white, size: 18),
+              icon: const Icon(Icons.copy,
+                  color: Colors.white, size: 18),
             ),
           ]),
           const SizedBox(height: 4),
           Text(
-            'Siswa input kode ini di Login untuk gabung ke sanggar kamu.',
+            'Siswa input kode ini di Search → Sanggar untuk gabung.',
             style: TextStyle(
                 color: Colors.white.withValues(alpha: .75),
                 fontSize: 11.5),
@@ -561,9 +584,7 @@ class _StatCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                      fontSize: 10,
-                      height: 1.15,
-                      color: C.muted)),
+                      fontSize: 10, height: 1.15, color: C.muted)),
             ],
           ),
         ],
