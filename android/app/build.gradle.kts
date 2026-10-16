@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
@@ -24,6 +24,15 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
@@ -40,7 +49,7 @@ kotlin {
 }
 
 dependencies {
-    // Firebase BOM — biar versi Firebase konsisten
+    // Firebase BOM â€” biar versi Firebase konsisten
     implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
 
     // Firebase packages
@@ -49,7 +58,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
 
-    // MediaPipe — pake versi stabil yang gak konflik protobuf
+    // MediaPipe â€” pake versi stabil yang gak konflik protobuf
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
 
     // Force protobuf ke versi kompatibel (javalite, bukan java)
@@ -58,7 +67,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
-// Force ALL protobuf variants ke satu versi — fix NoSuchMethodError
+// Force ALL protobuf variants ke satu versi â€” fix NoSuchMethodError
 configurations.all {
     resolutionStrategy {
         force("com.google.protobuf:protobuf-java:3.21.12")
