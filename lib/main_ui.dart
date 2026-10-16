@@ -25,7 +25,7 @@ class TariAppUI extends StatelessWidget {
         final s = AppState.instance;
         final loggedIn = s.hasLoggedIn;
         return MaterialApp(
-          title: 'Belajar Bareng (UI)',
+          title: 'JEWILO - Jejak Wiraga Loka',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(
             dyslexia: s.dyslexiaFont,
