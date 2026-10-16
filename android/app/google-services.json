@@ -1,4 +1,4 @@
-{
+﻿{
   "project_info": {
     "project_number": "840587110754",
     "project_id": "belajar-bareng-tari",
@@ -18,7 +18,7 @@
           "client_type": 1,
           "android_info": {
             "package_name": "com.example.tari_app",
-            "certificate_hash": "2cf5cd5e99cab92011d29eec0bae432b7de3d354"
+            "certificate_hash": "6cdc2522aba2621779f4a2281fbc9c96bb554a00"
           }
         },
         {
