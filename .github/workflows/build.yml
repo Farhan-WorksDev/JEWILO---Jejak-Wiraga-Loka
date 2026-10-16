@@ -49,10 +49,12 @@ jobs:
 
       - name: Restore debug keystore
         run: |
-          mkdir -p ~/.android
-          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d > ~/.android/debug.keystore
-          echo "=== Keystore restored ==="
-          ls -la ~/.android/debug.keystore
+          mkdir -p android/app
+          echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | tr -d '\n\r ' | base64 -d > android/app/debug.keystore
+          echo "=== Keystore restored ke android/app/debug.keystore ==="
+          ls -la android/app/debug.keystore
+          echo "=== Verify SHA ==="
+          keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android 2>&1 | grep "SHA1:"
       - name: Build APK (debug, arm64)
         run: flutter build apk --debug --target-platform android-arm64
 
