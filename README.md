@@ -125,8 +125,8 @@ Input dari keypoints/*.npz, output ke models/ + auto-copy ke tari_app/assets/mod
 
 ## Tim
 
-- Farhan
 - Razi Ahmad Azzuhri
+- Farhan
 - Muhammad Syarafi Putra Andrian
 - Khalifah Muhammad Zaki Fathurrahman
 
