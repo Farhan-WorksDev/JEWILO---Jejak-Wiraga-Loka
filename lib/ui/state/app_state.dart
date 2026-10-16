@@ -288,10 +288,6 @@ class AppState extends ChangeNotifier {
   String get reminderLabel =>
       '${reminderHour.toString().padLeft(2, '0')}:${reminderMinute.toString().padLeft(2, '0')}';
 
-  String _generateSanggarId() {
-    final u = _uuid.v4().replaceAll('-', '');
-    return 'SANG-${u.substring(0, 4).toUpperCase()}';
-  }
 
   /// Update sanggarId user aktif + save ke SharedPreferences.
   Future<void> setSanggarId(String? sanggarId) async {
@@ -314,7 +310,10 @@ class AppState extends ChangeNotifier {
     String? sanggarId;
     if (role == 'pelatih') {
       if (sanggarName.trim().isEmpty) throw 'Nama sanggar wajib diisi';
-      sanggarId = _ensureSanggar(sanggarName.trim(), trimmed);
+      // JANGAN auto-bikin sanggar random lokal.
+      // Pelatih baru harus klik 'Daftarkan Sanggar' (createSanggar) biar Firestore doc-nya ke-set.
+      // Nanti sanggarId di-pull dari Firestore via listener.
+      sanggarId = null;
     } else if (kodeSanggar != null && kodeSanggar.isNotEmpty) {
       final kode = kodeSanggar.trim().toUpperCase();
       if (!sanggarList.any((s) => s.id == kode)) {
@@ -352,27 +351,9 @@ class AppState extends ChangeNotifier {
         .toList();
   }
 
-  String _ensureSanggar(String sanggarName, String pelatihName) {
-    try {
-      final existing = sanggarList.firstWhere(
-        (s) =>
-            s.name.toLowerCase() == sanggarName.toLowerCase() &&
-            s.pelatih.toLowerCase() == pelatihName.toLowerCase(),
-      );
-      return existing.id;
-    } catch (_) {
-      final newSg = Sanggar(
-        id: _generateSanggarId(),
-        name: sanggarName,
-        pelatih: pelatihName,
-        siswa: [],
-        createdAt: DateTime.now().toIso8601String(),
-      );
-      sanggarList.add(newSg);
-      return newSg.id;
-    }
-  }
 
+  /// Listen perubahan dokumen user di Firestore.
+  /// Dipanggil setelah login / saat app start.
   /// Listen perubahan dokumen user di Firestore.
   /// Dipanggil setelah login / saat app start.
   Future<void> listenToMyFirestoreDoc() async {
@@ -387,19 +368,44 @@ class AppState extends ChangeNotifier {
       final u = current;
       if (u == null) return;
 
-      // Sync sanggarId — kalau di-kick pelatih, jadi null
-      final remoteSanggarId = data['sanggarId'] as String?;
-      if (remoteSanggarId != u.sanggarId) {
-        u.sanggarId = remoteSanggarId;
-        _save();
-        notifyListeners();
-        debugPrint('synced sanggarId: $remoteSanggarId');
+      var changed = false;
+
+      // Sync sanggarId — HANYA kalau remote beneran punya nilai
+      // (biar offline + cache kosong gak nimpa lokal jadi null)
+      if (data.containsKey('sanggarId')) {
+        final remoteSanggarId = data['sanggarId'] as String?;
+        if (remoteSanggarId != u.sanggarId) {
+          u.sanggarId = remoteSanggarId;
+          changed = true;
+          debugPrint('synced sanggarId: $remoteSanggarId');
+        }
+
+        // Pastiin objek Sanggar ada di list lokal (biar currentSanggar gak null)
+        if (remoteSanggarId != null &&
+            !sanggarList.any((s) => s.id == remoteSanggarId)) {
+          final nm = (data['sanggarName'] ?? '').toString();
+          sanggarList.add(Sanggar(
+            id: remoteSanggarId,
+            name: nm.isEmpty ? 'Sanggar' : nm,
+            pelatih: u.name,
+            siswa: [],
+            createdAt: DateTime.now().toIso8601String(),
+          ));
+          changed = true;
+          debugPrint('added sanggar to local: $remoteSanggarId');
+        }
       }
 
       // Sync role (kalau berubah dari siswa -> pelatih)
-      final remoteRole = data['role'] as String?;
-      if (remoteRole != null && remoteRole != u.role) {
-        u.role = remoteRole;
+      if (data.containsKey('role')) {
+        final remoteRole = data['role'] as String?;
+        if (remoteRole != null && remoteRole != u.role) {
+          u.role = remoteRole;
+          changed = true;
+        }
+      }
+
+      if (changed) {
         _save();
         notifyListeners();
       }

@@ -156,6 +156,19 @@ class AuthService {
       };
     }
 
+    // Cek duplicate: kalau udah join sanggar yang sama, skip
+    final userSnap = await _fire.collection('users').doc(uid).get();
+    final existingSanggarId = userSnap.data()?['sanggarId'];
+    if (existingSanggarId != null &&
+        existingSanggarId.toString().isNotEmpty &&
+        existingSanggarId.toString() == sanggar['docId']) {
+      return {
+        'success': true,
+        'message': 'Kamu sudah tergabung di sanggar ini',
+        'sanggar': sanggar,
+      };
+    }
+
     try {
       await _fire.collection('users').doc(uid).set({
         'role': 'siswa',

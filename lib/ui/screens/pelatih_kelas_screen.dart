@@ -16,7 +16,12 @@ class PelatihKelasScreen extends StatelessWidget {
       listenable: s,
       builder: (context, _) {
         final sg = s.currentSanggar;
+        // Mode Offline: gak bisa akses Firestore
+        if (s.isOffline) {
+          return _offlineState(context);
+        }
         if (sg == null) return _emptyState(context);
+        // Mode Offline: gak bisa akses Firestore
 
         return StreamBuilder<List<Map<String, dynamic>>>(
           stream: AuthService.instance.streamMuridBySanggar(sg.id),
@@ -129,6 +134,45 @@ class PelatihKelasScreen extends StatelessWidget {
   }
 
   // ---- helpers ----
+
+  static Widget _offlineState(BuildContext context) {
+    return Scaffold(
+      backgroundColor: C.bg,
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                    color: C.purpleSoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.cloud_off_outlined,
+                      size: 56, color: C.purple),
+                ),
+                const SizedBox(height: 20),
+                const Text('Fitur Pelatih Butuh Online',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        color: C.ink)),
+                const SizedBox(height: 8),
+                const Text(
+                  'Mode offline cuma buat latihan. Balik ke mode online buat kelola murid & sanggar.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: C.muted, fontSize: 13, height: 1.5),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   static Widget _emptyState(BuildContext context) {
     return Scaffold(

@@ -530,10 +530,20 @@ class SettingsScreen extends StatelessWidget {
                   ])
                 else
                   _section('Info Sanggar', [
-                    _tapRow(
-                      title: 'Nama sanggar',
-                      trailing: s.currentSanggar?.name ?? '-',
-                      onTap: () {},
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Row(children: [
+                        const Expanded(
+                          child: Text('Nama sanggar',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5)),
+                        ),
+                        Text(s.currentSanggar?.name ?? '-',
+                            style: const TextStyle(
+                                color: C.purple,
+                                fontWeight: FontWeight.w700)),
+                      ]),
                     ),
                     _tapRow(
                       title: 'Kode sanggar',

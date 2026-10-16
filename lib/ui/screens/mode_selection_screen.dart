@@ -16,8 +16,14 @@ class ModeSelectionScreen extends StatelessWidget {
     );
   }
 
-  void _selectOffline(BuildContext context) {
-    AppState.instance.setUserMode('offline');
+  Future<void> _selectOffline(BuildContext context) async {
+    final s = AppState.instance;
+    await s.setUserMode('offline');
+    // Bikin profil tamu biar settings gak diam-diam gagal
+    if (!s.hasLoggedIn) {
+      await s.createProfile(userName: 'Tamu', role: 'siswa');
+    }
+    if (!context.mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const Shell()),
     );

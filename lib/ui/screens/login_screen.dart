@@ -38,6 +38,16 @@ class _LoginScreenState extends State<LoginScreen> {
           sanggarName: profile['sanggarName'] ?? '',
           kodeSanggar: profile['kodeSanggar'],
         );
+
+        // Sync sanggarId dari Firestore ke lokal (kalau ada)
+        final remoteSanggarId = profile['sanggarId'] as String?;
+        if (remoteSanggarId != null && remoteSanggarId.isNotEmpty) {
+          await AppState.instance.setSanggarId(remoteSanggarId);
+        }
+
+        // Attach Firestore listener (handle kick murid real-time)
+        AppState.instance.listenToMyFirestoreDoc();
+
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const Shell()),
