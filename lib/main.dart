@@ -8,20 +8,22 @@ import 'ui/screens/mode_selection_screen.dart';
 import 'ui/screens/shell.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/services/reminder_service.dart';
+import 'ui/services/tts_service.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Init Firebase (auth, firestore, messaging)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
   await AppState.instance.load();
 
-  // Start listener Firestore (kalau user udah login dari session sebelumnya)
+  // Init TTS (TalkBack)
+  await TtsService.instance.init();
+
   // ignore: discarded_futures
   AppState.instance.listenToMyFirestoreDoc();
   // ignore: discarded_futures
@@ -56,7 +58,6 @@ class TariApp extends StatelessWidget {
             }
             return MediaQuery(
               data: MediaQuery.of(context).copyWith(
-                // Ukuran tulisan dikendalikan slider di Pengaturan
                 textScaler: TextScaler.linear(s.textScale),
                 disableAnimations: s.reduceMotion,
               ),
@@ -65,8 +66,8 @@ class TariApp extends StatelessWidget {
           },
           home: SplashScreen(
             next: (s.hasLoggedIn || s.isOffline)
-              ? const Shell()
-              : const ModeSelectionScreen(),
+                ? const Shell()
+                : const ModeSelectionScreen(),
           ),
         );
       },

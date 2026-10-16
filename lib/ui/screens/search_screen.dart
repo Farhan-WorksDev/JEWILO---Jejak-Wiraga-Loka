@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../widgets/screen_announcer.dart';
 import 'tarian_search_tab.dart';
 import 'sanggar_search_screen.dart';
 
@@ -27,50 +28,53 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: C.bg,
-      body: SafeArea(
-        child: Column(children: [
-          // Top bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 16, 4),
-            child: Row(children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back),
-              ),
-              const Expanded(
-                child: Text('Cari',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 18)),
-              ),
-            ]),
-          ),
-          // TabBar
-          TabBar(
-            controller: _ctrl,
-            labelColor: C.purple,
-            unselectedLabelColor: C.muted,
-            indicatorColor: C.purple,
-            indicatorWeight: 3,
-            labelStyle: const TextStyle(
-                fontWeight: FontWeight.w800, fontSize: 13.5),
-            tabs: const [
-              Tab(text: 'Tarian', icon: Icon(Icons.menu_book, size: 18)),
-              Tab(text: 'Sanggar', icon: Icon(Icons.home_work, size: 18)),
-            ],
-          ),
-          // TabBarView
-          Expanded(
-            child: TabBarView(
+    return ScreenAnnouncer(
+      title: 'Cari',
+      summary:
+          'Ada dua tab: Tarian dan Sanggar. Ketuk tab untuk berpindah, '
+          'lalu ketik kata kunci di kolom pencarian.',
+      child: Scaffold(
+        backgroundColor: C.bg,
+        body: SafeArea(
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 4),
+              child: Row(children: [
+                IconButton(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                const Expanded(
+                  child: Text('Cari',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 18)),
+                ),
+              ]),
+            ),
+            TabBar(
               controller: _ctrl,
-              children: const [
-                TarianTab(),
-                SanggarSearchScreen(),
+              labelColor: C.purple,
+              unselectedLabelColor: C.muted,
+              indicatorColor: C.purple,
+              indicatorWeight: 3,
+              labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800, fontSize: 13.5),
+              tabs: const [
+                Tab(text: 'Tarian', icon: Icon(Icons.menu_book, size: 18)),
+                Tab(text: 'Sanggar', icon: Icon(Icons.home_work, size: 18)),
               ],
             ),
-          ),
-        ]),
+            Expanded(
+              child: TabBarView(
+                controller: _ctrl,
+                children: const [
+                  TarianTab(),
+                  SanggarSearchScreen(),
+                ],
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }

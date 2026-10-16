@@ -23,6 +23,8 @@ dependencies:
   firebase_messaging: ^17.0.0
   google_sign_in: ^7.2.0
   timezone: ^0.9.4
+  flutter_tts: ^4.2.0
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -36,7 +38,7 @@ flutter:
     - assets/models/dance_detector.tflite
     - assets/models/label_map.json
     - assets/jewilo_logo.png
-    - assets/jewilo_logo.png
+    - assets/music/
   fonts:
     - family: PlusJakartaSans
       fonts:

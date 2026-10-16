@@ -2,6 +2,7 @@
 import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
+import '../widgets/screen_announcer.dart';
 
 class CreateSanggarScreen extends StatefulWidget {
   const CreateSanggarScreen({super.key});
@@ -66,7 +67,6 @@ class _CreateSanggarScreenState extends State<CreateSanggarScreen> {
       return;
     }
 
-    // Update AppState lokal
     await AppState.instance.setAsPelatih(
       sanggarId: result['sanggarId'],
       sanggarName: nama,
@@ -75,7 +75,6 @@ class _CreateSanggarScreenState extends State<CreateSanggarScreen> {
 
     if (!mounted) return;
 
-    // Tampil dialog sukses + kode
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -88,7 +87,8 @@ class _CreateSanggarScreenState extends State<CreateSanggarScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Bagikan kode ini ke murid supaya mereka bisa gabung:',
+            const Text(
+                'Bagikan kode ini ke murid supaya mereka bisa gabung:',
                 style: TextStyle(fontSize: 13)),
             const SizedBox(height: 12),
             Container(
@@ -133,107 +133,114 @@ class _CreateSanggarScreenState extends State<CreateSanggarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: C.bg,
-      appBar: AppBar(
+    return ScreenAnnouncer(
+      title: 'Daftarkan Sanggar',
+      summary:
+          'Isi nama sanggar dan wilayah, lalu isi data opsional lainnya. '
+          'Tekan tombol Daftarkan Sanggar di bawah untuk menyimpan.',
+      child: Scaffold(
         backgroundColor: C.bg,
-        elevation: 0,
-        title: const Text('Daftarkan Sanggar',
-            style: TextStyle(
-                fontWeight: FontWeight.w800, color: C.ink, fontSize: 17)),
-        iconTheme: const IconThemeData(color: C.ink),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _infoBanner(),
-              const SizedBox(height: 20),
-              _label('Nama Sanggar *'),
-              _textField(_namaCtrl, 'Contoh: Sanggar Seni Nusantara',
-                  Icons.home_work_outlined),
-              const SizedBox(height: 16),
-              _label('Wilayah *'),
-              _textField(_regionCtrl, 'Contoh: Padang, Sumatera Barat',
-                  Icons.location_on_outlined),
-              const SizedBox(height: 16),
-              _label('Alamat'),
-              _textField(_alamatCtrl, 'Jl. Contoh No. 123',
-                  Icons.map_outlined),
-              const SizedBox(height: 16),
-              _label('Telepon'),
-              _textField(_teleponCtrl, '0812-3456-7890', Icons.phone_outlined,
-                  keyboard: TextInputType.phone),
-              const SizedBox(height: 16),
-              _label('Email'),
-              _textField(_emailCtrl, 'sanggar@email.com',
-                  Icons.email_outlined,
-                  keyboard: TextInputType.emailAddress),
-              const SizedBox(height: 16),
-              _label('Tahun Berdiri'),
-              _textField(_tahunCtrl, '2010', Icons.calendar_today_outlined,
-                  keyboard: TextInputType.number),
-              const SizedBox(height: 16),
-              _label('Jadwal Latihan'),
-              _textField(_jadwalCtrl, 'Senin & Rabu 16:00-18:00',
-                  Icons.schedule_outlined),
-              const SizedBox(height: 16),
-              _label('Deskripsi'),
-              TextField(
-                controller: _deskripsiCtrl,
-                maxLines: 3,
-                style: const TextStyle(color: C.ink),
-                decoration: InputDecoration(
-                  hintText: 'Ceritakan tentang sanggar kamu...',
-                  hintStyle: TextStyle(
-                      color: C.muted.withValues(alpha: .7)),
-                  filled: true,
-                  fillColor: Colors.white,
-                  enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: const BorderSide(color: C.line)),
-                  focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide:
-                          const BorderSide(color: C.purple, width: 1.5)),
-                  contentPadding: const EdgeInsets.all(14),
+        appBar: AppBar(
+          backgroundColor: C.bg,
+          elevation: 0,
+          title: const Text('Daftarkan Sanggar',
+              style: TextStyle(
+                  fontWeight: FontWeight.w800, color: C.ink, fontSize: 17)),
+          iconTheme: const IconThemeData(color: C.ink),
+        ),
+        body: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _infoBanner(),
+                const SizedBox(height: 20),
+                _label('Nama Sanggar *'),
+                _textField(_namaCtrl, 'Contoh: Sanggar Seni Nusantara',
+                    Icons.home_work_outlined),
+                const SizedBox(height: 16),
+                _label('Wilayah *'),
+                _textField(_regionCtrl, 'Contoh: Padang, Sumatera Barat',
+                    Icons.location_on_outlined),
+                const SizedBox(height: 16),
+                _label('Alamat'),
+                _textField(
+                    _alamatCtrl, 'Jl. Contoh No. 123', Icons.map_outlined),
+                const SizedBox(height: 16),
+                _label('Telepon'),
+                _textField(_teleponCtrl, '0812-3456-7890',
+                    Icons.phone_outlined,
+                    keyboard: TextInputType.phone),
+                const SizedBox(height: 16),
+                _label('Email'),
+                _textField(_emailCtrl, 'sanggar@email.com',
+                    Icons.email_outlined,
+                    keyboard: TextInputType.emailAddress),
+                const SizedBox(height: 16),
+                _label('Tahun Berdiri'),
+                _textField(_tahunCtrl, '2010', Icons.calendar_today_outlined,
+                    keyboard: TextInputType.number),
+                const SizedBox(height: 16),
+                _label('Jadwal Latihan'),
+                _textField(_jadwalCtrl, 'Senin & Rabu 16:00-18:00',
+                    Icons.schedule_outlined),
+                const SizedBox(height: 16),
+                _label('Deskripsi'),
+                TextField(
+                  controller: _deskripsiCtrl,
+                  maxLines: 3,
+                  style: const TextStyle(color: C.ink),
+                  decoration: InputDecoration(
+                    hintText: 'Ceritakan tentang sanggar kamu...',
+                    hintStyle:
+                        TextStyle(color: C.muted.withValues(alpha: .7)),
+                    filled: true,
+                    fillColor: Colors.white,
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: const BorderSide(color: C.line)),
+                    focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide:
+                            const BorderSide(color: C.purple, width: 1.5)),
+                    contentPadding: const EdgeInsets.all(14),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                      backgroundColor: C.purple,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      elevation: 0),
-                  onPressed: _loading ? null : _submit,
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text('Daftarkan Sanggar',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                    color: Colors.white)),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward,
-                                size: 18, color: Colors.white),
-                          ],
-                        ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                        backgroundColor: C.purple,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
+                        elevation: 0),
+                    onPressed: _loading ? null : _submit,
+                    child: _loading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Daftarkan Sanggar',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                      color: Colors.white)),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward,
+                                  size: 18, color: Colors.white),
+                            ],
+                          ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

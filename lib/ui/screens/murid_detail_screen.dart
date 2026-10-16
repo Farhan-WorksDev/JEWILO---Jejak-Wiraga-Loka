@@ -1,8 +1,8 @@
 ﻿import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme.dart';
+import '../widgets/screen_announcer.dart';
 
-/// Detail murid — muncul kalau pelatih tap salah satu murid di PelatihMuridScreen.
 class MuridDetailScreen extends StatefulWidget {
   final Map<String, dynamic> murid;
   const MuridDetailScreen({super.key, required this.murid});
@@ -14,7 +14,6 @@ class MuridDetailScreen extends StatefulWidget {
 class _MuridDetailScreenState extends State<MuridDetailScreen> {
   bool _kicking = false;
 
-  // === Getters ===
   String get _uid => (widget.murid['uid'] ?? '').toString();
   String get _nama => (widget.murid['nama'] ?? 'Siswa').toString();
   String get _email => (widget.murid['email'] ?? '-').toString();
@@ -81,56 +80,61 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: C.bg,
-      body: SafeArea(
-        child: Column(children: [
-          // Top bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 16, 4),
-            child: Row(children: [
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back),
-              ),
-              const Expanded(
-                child: Text('Detail Murid',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 18)),
-              ),
-              if (_uid.isNotEmpty)
+    return ScreenAnnouncer(
+      title: 'Detail Murid',
+      summary: 'Progress $_nama. '
+          'XP $_xp, level $_level, streak $_streak hari, '
+          'total latihan ${_formatMenit(_totalMinutes)}, '
+          '$_completedCount variasi selesai.',
+      child: Scaffold(
+        backgroundColor: C.bg,
+        body: SafeArea(
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 4),
+              child: Row(children: [
                 IconButton(
-                  tooltip: 'Keluarkan dari sanggar',
-                  onPressed: _kicking ? null : _kick,
-                  icon: Icon(
-                    Icons.person_remove_outlined,
-                    color: _kicking ? C.muted : C.red,
-                  ),
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
                 ),
-            ]),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              children: [
-                _header(),
-                const SizedBox(height: 20),
-                _statGrid(),
-                const SizedBox(height: 20),
-                _sectionRiwayat(),
-                const SizedBox(height: 20),
-                _sectionBadges(),
-                const SizedBox(height: 20),
-                _infoTerakhir(),
-              ],
+                const Expanded(
+                  child: Text('Detail Murid',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800, fontSize: 18)),
+                ),
+                if (_uid.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Keluarkan dari sanggar',
+                    onPressed: _kicking ? null : _kick,
+                    icon: Icon(
+                      Icons.person_remove_outlined,
+                      color: _kicking ? C.muted : C.red,
+                    ),
+                  ),
+              ]),
             ),
-          ),
-        ]),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                children: [
+                  _header(),
+                  const SizedBox(height: 20),
+                  _statGrid(),
+                  const SizedBox(height: 20),
+                  _sectionRiwayat(),
+                  const SizedBox(height: 20),
+                  _sectionBadges(),
+                  const SizedBox(height: 20),
+                  _infoTerakhir(),
+                ],
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }
 
-  // === HEADER ===
   Widget _header() => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -190,7 +194,6 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
         ),
       );
 
-  // === STAT GRID ===
   Widget _statGrid() => GridView.count(
         crossAxisCount: 2,
         shrinkWrap: true,
@@ -200,14 +203,14 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
         mainAxisExtent: 110,
         children: [
           _statCard(Icons.bolt, '$_xp', 'Total XP', C.purple),
-          _statCard(Icons.local_fire_department,
-              '$_streak hari', 'Streak Sekarang', Colors.orange),
-          _statCard(Icons.emoji_events_outlined,
-              '$_longest hari', 'Streak Terpanjang', Colors.amber),
+          _statCard(Icons.local_fire_department, '$_streak hari',
+              'Streak Sekarang', Colors.orange),
+          _statCard(Icons.emoji_events_outlined, '$_longest hari',
+              'Streak Terpanjang', Colors.amber),
           _statCard(Icons.timer_outlined, _formatMenit(_totalMinutes),
               'Total Latihan', Colors.teal),
-          _statCard(Icons.menu_book, '$_completedCount',
-              'Variasi Selesai', Colors.indigo),
+          _statCard(Icons.menu_book, '$_completedCount', 'Variasi Selesai',
+              Colors.indigo),
           _statCard(Icons.badge_outlined, '${_badges.length}',
               'Badge Diperoleh', Colors.pink),
         ],
@@ -250,7 +253,6 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
     );
   }
 
-  // === RIWAYAT 7 HARI ===
   Widget _sectionRiwayat() {
     final days = _last7Days();
     return Container(
@@ -277,7 +279,7 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
             children: days.map((d) {
               final sec = _secondsByDay[d.key] ?? 0;
               final menit = (sec / 60).round();
-              final maxMenit = 60.0;
+              const maxMenit = 60.0;
               final h = (menit / maxMenit).clamp(0.05, 1.0);
               return Column(
                 children: [
@@ -313,7 +315,7 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
 
   List<({String key, String label})> _last7Days() {
     final now = DateTime.now();
-    final names = ['S', 'S', 'R', 'K', 'J', 'S', 'M'];
+    const names = ['S', 'S', 'R', 'K', 'J', 'S', 'M'];
     final out = <({String key, String label})>[];
     for (var i = 6; i >= 0; i--) {
       final d = DateTime(now.year, now.month, now.day - i);
@@ -324,7 +326,6 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
     return out;
   }
 
-  // === BADGES ===
   Widget _sectionBadges() {
     final badges = _badges;
     return Container(
@@ -383,25 +384,52 @@ class _MuridDetailScreenState extends State<MuridDetailScreen> {
   ({String label, IconData icon, Color color}) _badgeInfo(String key) {
     switch (key) {
       case 'first_step':
-        return (label: 'Langkah Pertama', icon: Icons.flag, color: Colors.green);
+        return (
+          label: 'Langkah Pertama',
+          icon: Icons.flag,
+          color: Colors.green
+        );
       case 'streak3':
-        return (label: 'Streak 3 Hari', icon: Icons.local_fire_department, color: Colors.orange);
+        return (
+          label: 'Streak 3 Hari',
+          icon: Icons.local_fire_department,
+          color: Colors.orange
+        );
       case 'streak7':
-        return (label: 'Streak 7 Hari', icon: Icons.local_fire_department, color: Colors.deepOrange);
+        return (
+          label: 'Streak 7 Hari',
+          icon: Icons.local_fire_department,
+          color: Colors.deepOrange
+        );
       case 'var_pemula':
-        return (label: 'Variasi Pemula', icon: Icons.school, color: C.purple);
+        return (
+          label: 'Variasi Pemula',
+          icon: Icons.school,
+          color: C.purple
+        );
       case 'var_menengah':
-        return (label: 'Variasi Menengah', icon: Icons.school, color: Colors.indigo);
+        return (
+          label: 'Variasi Menengah',
+          icon: Icons.school,
+          color: Colors.indigo
+        );
       case 'var_akhir':
-        return (label: 'Variasi Mahir', icon: Icons.school, color: Colors.red);
+        return (
+          label: 'Variasi Mahir',
+          icon: Icons.school,
+          color: Colors.red
+        );
       case 'saman_complete':
-        return (label: 'Tari Saman Tamat', icon: Icons.emoji_events, color: Colors.amber);
+        return (
+          label: 'Tari Saman Tamat',
+          icon: Icons.emoji_events,
+          color: Colors.amber
+        );
       default:
         return (label: key, icon: Icons.badge, color: C.muted);
     }
   }
 
-  // === INFO TERAKHIR ===
   Widget _infoTerakhir() {
     final d = _daysSince(_lastDay);
     final label = d == null

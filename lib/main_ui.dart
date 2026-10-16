@@ -4,12 +4,14 @@ import 'ui/no_stretch_scroll_behavior.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/shell.dart';
 import 'ui/screens/splash_screen.dart';
+import 'ui/services/tts_service.dart';
 import 'ui/state/app_state.dart';
 import 'ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AppState.instance.load();
+  await TtsService.instance.init();
   runApp(const TariAppUI());
 }
 

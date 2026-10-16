@@ -70,8 +70,14 @@ class UserData {
   bool colorBlind;
   String colorBlindType;
   bool focusMode;
-  /// Skala teks manual: 0.85 – 1.5 (default 1.0).
   double textScale;
+  bool talkBack;
+  double talkBackSpeed;
+  double talkBackVolume;
+  // ---- Musik latihan ----
+  bool musicOn;
+  double musicRate;
+  double musicVolume;
   final String createdAt;
 
   UserData({
@@ -101,6 +107,12 @@ class UserData {
     this.colorBlindType = 'deutan',
     this.focusMode = false,
     this.textScale = 1.0,
+    this.talkBack = false,
+    this.talkBackSpeed = 0.5,
+    this.talkBackVolume = 1.0,
+    this.musicOn = true,
+    this.musicRate = 1.0,
+    this.musicVolume = 0.5,
     required this.createdAt,
   })  : completed = completed ?? {},
         secondsByDay = secondsByDay ?? {},
@@ -137,6 +149,12 @@ class UserData {
         'colorBlindType': colorBlindType,
         'focusMode': focusMode,
         'textScale': textScale,
+        'talkBack': talkBack,
+        'talkBackSpeed': talkBackSpeed,
+        'talkBackVolume': talkBackVolume,
+        'musicOn': musicOn,
+        'musicRate': musicRate,
+        'musicVolume': musicVolume,
         'createdAt': createdAt,
       };
 
@@ -166,9 +184,14 @@ class UserData {
         colorBlind: m['colorBlind'] ?? false,
         colorBlindType: m['colorBlindType'] ?? 'deutan',
         focusMode: m['focusMode'] ?? false,
-        // Migration: user lama yang punya lowVision:true → otomatis textScale 1.25
         textScale: (m['textScale'] as num?)?.toDouble() ??
             ((m['lowVision'] == true) ? 1.25 : 1.0),
+        talkBack: m['talkBack'] ?? false,
+        talkBackSpeed: (m['talkBackSpeed'] as num?)?.toDouble() ?? 0.5,
+        talkBackVolume: (m['talkBackVolume'] as num?)?.toDouble() ?? 1.0,
+        musicOn: m['musicOn'] ?? true,
+        musicRate: (m['musicRate'] as num?)?.toDouble() ?? 1.0,
+        musicVolume: (m['musicVolume'] as num?)?.toDouble() ?? 0.5,
         createdAt: m['createdAt'] ?? DateTime.now().toIso8601String(),
       );
 }
@@ -180,7 +203,6 @@ class AppState extends ChangeNotifier {
   SharedPreferences? _p;
   StreamSubscription? _userDocSub;
 
-  /// Mode yang dipilih user: 'online' atau 'offline'.
   String _userMode = 'online';
   String get userMode => _userMode;
   bool get isOffline => _userMode == 'offline';
@@ -227,9 +249,14 @@ class AppState extends ChangeNotifier {
   String get colorBlindType => current?.colorBlindType ?? 'deutan';
   bool get focusMode => current?.focusMode ?? false;
   double get textScale => current?.textScale ?? 1.0;
+  bool get talkBack => current?.talkBack ?? false;
+  double get talkBackSpeed => current?.talkBackSpeed ?? 0.5;
+  double get talkBackVolume => current?.talkBackVolume ?? 1.0;
+  bool get musicOn => current?.musicOn ?? true;
+  double get musicRate => current?.musicRate ?? 1.0;
+  double get musicVolume => current?.musicVolume ?? 0.5;
   Map<String, int> get secondsByDay => current?.secondsByDay ?? {};
 
-  /// Set user aktif jadi pelatih + kaitin ke sanggar baru.
   Future<void> setAsPelatih({
     required String sanggarId,
     required String sanggarName,
@@ -237,12 +264,8 @@ class AppState extends ChangeNotifier {
   }) async {
     final u = current;
     if (u == null) return;
-
-    // Update role + sanggarId di UserData
     u.role = 'pelatih';
     u.sanggarId = sanggarId;
-
-    // Tambah sanggar ke list lokal (biar currentSanggar works)
     if (!sanggarList.any((s) => s.id == sanggarId)) {
       sanggarList.add(Sanggar(
         id: sanggarId,
@@ -252,7 +275,6 @@ class AppState extends ChangeNotifier {
         createdAt: DateTime.now().toIso8601String(),
       ));
     }
-
     await _save();
     notifyListeners();
   }
@@ -288,8 +310,6 @@ class AppState extends ChangeNotifier {
   String get reminderLabel =>
       '${reminderHour.toString().padLeft(2, '0')}:${reminderMinute.toString().padLeft(2, '0')}';
 
-
-  /// Update sanggarId user aktif + save ke SharedPreferences.
   Future<void> setSanggarId(String? sanggarId) async {
     final u = current;
     if (u == null) return;
@@ -310,9 +330,6 @@ class AppState extends ChangeNotifier {
     String? sanggarId;
     if (role == 'pelatih') {
       if (sanggarName.trim().isEmpty) throw 'Nama sanggar wajib diisi';
-      // JANGAN auto-bikin sanggar random lokal.
-      // Pelatih baru harus klik 'Daftarkan Sanggar' (createSanggar) biar Firestore doc-nya ke-set.
-      // Nanti sanggarId di-pull dari Firestore via listener.
       sanggarId = null;
     } else if (kodeSanggar != null && kodeSanggar.isNotEmpty) {
       final kode = kodeSanggar.trim().toUpperCase();
@@ -351,27 +368,18 @@ class AppState extends ChangeNotifier {
         .toList();
   }
 
-
-  /// Listen perubahan dokumen user di Firestore.
-  /// Dipanggil setelah login / saat app start.
-  /// Listen perubahan dokumen user di Firestore.
-  /// Dipanggil setelah login / saat app start.
   Future<void> listenToMyFirestoreDoc() async {
     final uid = AuthService.instance.current?.uid;
     if (uid == null) return;
 
     await _userDocSub?.cancel();
-    _userDocSub = AuthService.instance
-        .streamUserDoc(uid)
-        .listen((data) {
+    _userDocSub = AuthService.instance.streamUserDoc(uid).listen((data) {
       if (data == null) return;
       final u = current;
       if (u == null) return;
 
       var changed = false;
 
-      // Sync sanggarId — HANYA kalau remote beneran punya nilai
-      // (biar offline + cache kosong gak nimpa lokal jadi null)
       if (data.containsKey('sanggarId')) {
         final remoteSanggarId = data['sanggarId'] as String?;
         if (remoteSanggarId != u.sanggarId) {
@@ -380,7 +388,6 @@ class AppState extends ChangeNotifier {
           debugPrint('synced sanggarId: $remoteSanggarId');
         }
 
-        // Pastiin objek Sanggar ada di list lokal (biar currentSanggar gak null)
         if (remoteSanggarId != null &&
             !sanggarList.any((s) => s.id == remoteSanggarId)) {
           final nm = (data['sanggarName'] ?? '').toString();
@@ -396,7 +403,6 @@ class AppState extends ChangeNotifier {
         }
       }
 
-      // Sync role (kalau berubah dari siswa -> pelatih)
       if (data.containsKey('role')) {
         final remoteRole = data['role'] as String?;
         if (remoteRole != null && remoteRole != u.role) {
@@ -412,25 +418,19 @@ class AppState extends ChangeNotifier {
     });
   }
 
-  /// Stop Firestore listener (dipanggil saat logout).
   void stopListening() {
     _userDocSub?.cancel();
     _userDocSub = null;
   }
 
   Future<void> logout() async {
-    // 1. Stop Firestore listener
     stopListening();
-
-    // 2. Sign out dari Firebase Auth
     try {
       await AuthService.instance.signOut();
     } catch (_) {}
 
-    // 3. Reset state lokal
     activeUserId = null;
 
-    // 4. Clear SharedPreferences kecuali userMode
     if (_p != null) {
       final mode = _p!.getString('userMode');
       await _p!.clear();
@@ -500,12 +500,10 @@ class AppState extends ChangeNotifier {
     await _save();
     notifyListeners();
 
-    // Auto-sync ke Firestore (kalau mode online + login)
     if (_userMode == 'online' &&
         AuthService.instance.isSignedIn &&
         u.sanggarId != null) {
-      final totalSec =
-          u.secondsByDay.values.fold<int>(0, (a, b) => a + b);
+      final totalSec = u.secondsByDay.values.fold<int>(0, (a, b) => a + b);
       AuthService.instance.syncUserStats(
         xp: u.xp,
         streak: u.streak,
@@ -567,6 +565,16 @@ class AppState extends ChangeNotifier {
   set focusMode(bool v) => current?.focusMode = v;
   set textScale(double v) =>
       current?.textScale = v.clamp(0.85, 1.5).toDouble();
+  set talkBack(bool v) => current?.talkBack = v;
+  set talkBackSpeed(double v) =>
+      current?.talkBackSpeed = v.clamp(0.25, 0.75).toDouble();
+  set talkBackVolume(double v) =>
+      current?.talkBackVolume = v.clamp(0.0, 1.0).toDouble();
+  set musicOn(bool v) => current?.musicOn = v;
+  set musicRate(double v) =>
+      current?.musicRate = v.clamp(0.5, 2.0).toDouble();
+  set musicVolume(double v) =>
+      current?.musicVolume = v.clamp(0.0, 1.0).toDouble();
 
   Future<void> resetProgress() async {
     final u = current;

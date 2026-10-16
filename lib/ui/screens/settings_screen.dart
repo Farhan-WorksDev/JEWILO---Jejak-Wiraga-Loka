@@ -1,10 +1,14 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../services/auth_service.dart';
 import '../state/app_state.dart';
 import '../widgets/common.dart';
 import '../widgets/shell_animation.dart';
+import '../widgets/screen_announcer.dart';
+import '../services/tts_service.dart';
 import '../theme.dart';
 import 'login_screen.dart';
+import 'mode_selection_screen.dart';
 import 'shell.dart';
 import 'search_screen.dart';
 import 'create_sanggar_screen.dart';
@@ -41,13 +45,10 @@ const List<_AccOption> _accOptions = [
     infoTitle: 'Tulisan Ramah Disleksia',
     infoBody:
         'Cocok untuk kamu yang huruf-hurufnya kadang suka tertukar atau '
-        'susah dibedakan (misalnya b dan d).\n\n'
-        'Saat fitur ini dinyalakan:\n'
-        '• Jenis huruf diganti ke yang lebih jelas\n'
-        '• Jarak antar huruf lebih lebar\n'
-        '• Baris tulisan tidak berdempetan\n\n'
-        'Tidak ada salahnya dicoba — kalau tidak nyaman, bisa dimatikan '
-        'lagi kapan saja.',
+        'susah dibedakan, misalnya huruf b dan d.\n\n'
+        'Saat fitur ini dinyalakan, jenis huruf diganti ke yang lebih '
+        'jelas, jarak antar huruf lebih lebar, dan baris tulisan tidak '
+        'berdempetan.',
   ),
   _AccOption(
     key: 'lowVision',
@@ -59,12 +60,9 @@ const List<_AccOption> _accOptions = [
     infoBody:
         'Cocok kalau tulisan tipis terasa susah dibaca, atau warnanya '
         'terasa pudar.\n\n'
-        'Saat fitur ini dinyalakan:\n'
-        '• Tulisan jadi lebih tebal\n'
-        '• Warna tulisan lebih gelap & kontras\n'
-        '• Lebih mudah dibaca di cahaya terang\n\n'
-        'Untuk mengatur ukuran tulisan, gunakan bagian "Ukuran Tulisan" '
-        'di atas.',
+        'Saat fitur ini dinyalakan, tulisan jadi lebih tebal, warna '
+        'tulisan lebih gelap dan kontras. Untuk mengatur ukuran tulisan, '
+        'gunakan bagian Ukuran Tulisan di atas.',
   ),
   _AccOption(
     key: 'reduceMotion',
@@ -76,12 +74,9 @@ const List<_AccOption> _accOptions = [
     infoBody:
         'Cocok kalau kamu gampang pusing, tidak nyaman, atau sensitif '
         'terhadap gerakan dan kilatan cahaya.\n\n'
-        'Saat fitur ini dinyalakan:\n'
-        '• Semua animasi & efek gerak dimatikan\n'
-        '• Halaman berganti langsung tanpa transisi\n'
-        '• Tidak ada efek slide, bounce, atau kedip\n\n'
-        'Sangat membantu untuk yang punya sensitivitas terhadap cahaya '
-        'atau gerakan.',
+        'Saat fitur ini dinyalakan, semua animasi dimatikan, halaman '
+        'berganti langsung tanpa transisi, dan tidak ada efek slide, '
+        'bounce, atau kedip.',
   ),
   _AccOption(
     key: 'colorBlind',
@@ -92,13 +87,10 @@ const List<_AccOption> _accOptions = [
     infoTitle: 'Bantu Bedakan Warna',
     infoBody:
         'Cocok untuk yang sulit membedakan warna tertentu.\n\n'
-        'Cara pakai:\n'
-        '1. Nyalakan tombol\n'
-        '2. Pilih tipe yang paling cocok (Merah / Hijau / Biru-Kuning)\n'
-        '3. Lihat pratinjau warna di bawah — pilih yang paling mudah '
-        'kamu bedakan\n\n'
-        'Kalau tidak yakin tipemu yang mana, coba satu-satu dan pilih '
-        'yang paling nyaman.',
+        'Cara pakai: pertama, nyalakan tombol ini. Kedua, pilih tipe '
+        'yang paling cocok, apakah Merah, Hijau, atau Biru-Kuning. '
+        'Ketiga, lihat pratinjau warna di bawah dan pilih yang paling '
+        'mudah kamu bedakan.',
   ),
   _AccOption(
     key: 'simpleMode',
@@ -110,14 +102,24 @@ const List<_AccOption> _accOptions = [
     infoBody:
         'Cocok kalau kamu gampang terdistraksi atau sulit mempertahankan '
         'perhatian.\n\n'
-        'Saat fitur ini dinyalakan:\n'
-        '• Tampilan jadi lebih ringkas & sederhana\n'
-        '• Pelajaran yang belum bisa dibuka disembunyikan\n'
-        '• Statistik & lencana disembunyikan sementara\n'
-        '• Pengaturan aksesibilitas jadi ikon saja\n'
-        '• Fokus ke satu langkah berikutnya\n\n'
-        'Tidak ada yang hilang — semua data tetap tersimpan dan akan '
-        'muncul lagi kalau fitur ini dimatikan.',
+        'Saat fitur ini dinyalakan, tampilan jadi lebih ringkas, '
+        'pelajaran yang belum bisa dibuka disembunyikan, statistik dan '
+        'lencana disembunyikan sementara, dan fokus ke satu langkah '
+        'berikutnya.',
+  ),
+  _AccOption(
+    key: 'talkBack',
+    icon: Icons.record_voice_over_outlined,
+    color: Colors.indigo,
+    title: 'Bacakan layar (TalkBack)',
+    subtitle: 'Aplikasi membacakan teks & memandu latihan dengan suara',
+    infoTitle: 'Bacakan Layar (TalkBack)',
+    infoBody:
+        'Cocok untuk teman-teman yang sulit melihat atau membaca teks.\n\n'
+        'Saat fitur ini dinyalakan, setiap halaman dibacakan judulnya. '
+        'Saat latihan, aplikasi memandu dengan suara: nama gerakan, pose '
+        'yang harus dilakukan, dan umpan balik singkat kalau posisi belum '
+        'pas. Setiap tombol yang kamu ketuk juga akan diumumkan.',
   ),
 ];
 
@@ -133,6 +135,8 @@ bool _isAccActive(AppState s, String key) {
       return s.colorBlind;
     case 'simpleMode':
       return s.focusMode;
+    case 'talkBack':
+      return s.talkBack;
     default:
       return false;
   }
@@ -156,8 +160,23 @@ void _setAccActive(AppState s, String key, bool v) {
       case 'simpleMode':
         s.focusMode = v;
         break;
+      case 'talkBack':
+        s.talkBack = v;
+        break;
     }
   });
+
+  final opt = _accOptions.firstWhere((o) => o.key == key);
+  if (key == 'talkBack' && !v) {
+    TtsService.instance.speakNow(
+      'Fitur bacakan layar dimatikan',
+      force: true,
+    );
+  } else {
+    announceAction(
+      v ? 'Fitur ${opt.title} diaktifkan' : 'Fitur ${opt.title} dimatikan',
+    );
+  }
 }
 
 // ============================================================
@@ -176,6 +195,9 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = AppState.instance;
+    final showPelatihSection = s.isPelatih && !s.isOffline;
+    final showSiswaSection = !s.isPelatih || s.isOffline;
+
     return ListenableBuilder(
       listenable: s,
       builder: (context, _) => ListView(padding: EdgeInsets.zero, children: [
@@ -196,7 +218,7 @@ class SettingsScreen extends StatelessWidget {
                     decoration: const BoxDecoration(
                         color: C.purpleSoft, shape: BoxShape.circle),
                     child: Icon(
-                        s.isPelatih
+                        showPelatihSection
                             ? Icons.groups_outlined
                             : Icons.school_outlined,
                         color: C.purple),
@@ -211,7 +233,7 @@ class SettingsScreen extends StatelessWidget {
                                   fontWeight: FontWeight.w800, fontSize: 15)),
                           const SizedBox(height: 2),
                           Text(
-                              s.isPelatih
+                              showPelatihSection
                                   ? 'Pelatih • ${s.currentSanggar?.name ?? "-"}'
                                   : (s.inSanggar
                                       ? 'Siswa • ${s.currentSanggar?.name ?? "-"}'
@@ -232,6 +254,8 @@ class SettingsScreen extends StatelessWidget {
                       fillColor: C.bg),
                   onChanged: (v) => s.update(
                       () => s.name = v.trim().isEmpty ? 'Penari' : v.trim()),
+                  onFieldSubmitted: (v) =>
+                      announceAction('Nama panggilan disimpan sebagai $v'),
                 ),
               ]),
               const SizedBox(height: 12),
@@ -259,6 +283,10 @@ class SettingsScreen extends StatelessWidget {
                             _ColorBlindTypePicker(s: s),
                             const SizedBox(height: 10),
                           ],
+                          if (opt.key == 'talkBack' && s.talkBack) ...[
+                            _TalkBackSettings(s: s),
+                            const SizedBox(height: 10),
+                          ],
                         ],
                         _PreviewCard(s: s),
                       ],
@@ -270,56 +298,22 @@ class SettingsScreen extends StatelessWidget {
                 _tapRow(
                   title: 'Mode saat ini',
                   trailing: s.isOffline ? 'Offline' : 'Online',
-                  onTap: () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                        title: Text(
-                            'Ganti ke Mode ${s.isOffline ? "Online" : "Offline"}?'),
-                        content: Text(s.isOffline
-                            ? 'Diperlukan internet & login. Fitur online akan aktif.'
-                            : 'Fitur online akan dinonaktifkan. Latihan tetap bisa dilakukan.'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Batal')),
-                          FilledButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Ganti')),
-                        ],
-                      ),
-                    );
-                    if (ok != true) return;
-                    final goOffline = !s.isOffline;
-                    await s.setUserMode(goOffline ? 'offline' : 'online');
-                    if (!context.mounted) return;
-                    if (goOffline) {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const Shell()),
-                        (route) => false,
-                      );
-                    } else {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                            builder: (_) => const LoginScreen()),
-                        (route) => false,
-                      );
-                    }
-                  },
+                  onTap: () => _handleGantiMode(context, s),
                 ),
               ]),
               const SizedBox(height: 12),
 
-              // === SANGGAR SAYA (khusus siswa) ===
-              if (!s.isPelatih) ...[
+              // === SANGGAR SAYA (khusus siswa / pelatih offline) ===
+              if (showSiswaSection) ...[
                 _section('Sanggar Saya', [
                   if (s.inSanggar)
                     _tapRow(
                       title: s.currentSanggar?.name ?? 'Sanggar',
                       trailing: 'Keluar',
                       onTap: () async {
+                        final sgName = s.currentSanggar?.name ?? 'sanggar';
+                        announceAction(
+                            'Dialog keluar dari $sgName terbuka');
                         final ok = await showDialog<bool>(
                           context: context,
                           builder: (_) => AlertDialog(
@@ -327,11 +321,13 @@ class SettingsScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(20)),
                             title: const Text('Keluar dari sanggar?'),
                             content: Text(
-                                'Kamu akan keluar dari ${s.currentSanggar?.name ?? "sanggar"}. Progres tetap tersimpan.'),
+                                'Kamu akan keluar dari $sgName. Progres tetap tersimpan.'),
                             actions: [
                               TextButton(
-                                  onPressed: () =>
-                                      Navigator.pop(context, false),
+                                  onPressed: () {
+                                    announceAction('Batal keluar');
+                                    Navigator.pop(context, false);
+                                  },
                                   child: const Text('Batal')),
                               FilledButton(
                                   style: FilledButton.styleFrom(
@@ -344,6 +340,7 @@ class SettingsScreen extends StatelessWidget {
                         );
                         if (ok == true) {
                           await s.setSanggarId(null);
+                          announceAction('Kamu keluar dari $sgName');
                         }
                       },
                     )
@@ -370,6 +367,8 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         onPressed: () {
                           if (s.isOffline) {
+                            announceAction(
+                                'Butuh Mode Online untuk cari sanggar');
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                   content: Text(
@@ -377,6 +376,7 @@ class SettingsScreen extends StatelessWidget {
                             );
                             return;
                           }
+                          announceAction('Membuka halaman pencarian sanggar');
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -394,19 +394,25 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 12),
               ],
 
-              // === PENGINGAT (khusus siswa) ===
-              if (!s.isPelatih) ...[
+              // === PENGINGAT ===
+              if (showSiswaSection) ...[
                 _section('Pengingat Harian', [
                   _switchRow(
                     title: 'Ingatkan saya untuk latihan',
                     sub: 'Setiap hari jam ${s.reminderLabel}',
                     value: s.reminderOn,
-                    onChanged: (v) => s.update(() => s.reminderOn = v),
+                    onChanged: (v) {
+                      s.update(() => s.reminderOn = v);
+                      announceAction(v
+                          ? 'Pengingat harian diaktifkan, setiap hari jam ${s.reminderLabel}'
+                          : 'Pengingat harian dimatikan');
+                    },
                   ),
                   _tapRow(
                     title: 'Atur jam pengingat',
                     trailing: s.reminderLabel,
                     onTap: () async {
+                      announceAction('Dialog pilih jam terbuka');
                       final t = await showTimePicker(
                           context: context,
                           initialTime: TimeOfDay(
@@ -417,6 +423,8 @@ class SettingsScreen extends StatelessWidget {
                           s.reminderHour = t.hour;
                           s.reminderMinute = t.minute;
                         });
+                        announceAction(
+                            'Jam pengingat diubah ke ${s.reminderLabel}');
                       }
                     },
                   ),
@@ -434,6 +442,8 @@ class SettingsScreen extends StatelessWidget {
                         filled: true,
                         fillColor: C.bg),
                     onChanged: (v) => s.update(() => s.habitCue = v),
+                    onFieldSubmitted: (v) => announceAction(
+                        'Pemicu latihan disimpan: $v'),
                   ),
                 ]),
                 const SizedBox(height: 12),
@@ -457,27 +467,38 @@ class SettingsScreen extends StatelessWidget {
                       children: [
                         for (final e in _fpsOptions.entries)
                           Expanded(
-                            child: GestureDetector(
-                              onTap: () => s.update(() => s.fps = e.key),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: s.fps == e.key
-                                      ? C.purple
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Center(
-                                  child: Text(e.value,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                          color: s.fps == e.key
-                                              ? Colors.white
-                                              : C.ink,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 12)),
+                            child: Semantics(
+                              button: true,
+                              selected: s.fps == e.key,
+                              label:
+                                  'Kehalusan ${e.value}, ${s.fps == e.key ? "sedang dipilih" : "ketuk untuk pilih"}',
+                              child: GestureDetector(
+                                onTap: () {
+                                  s.update(() => s.fps = e.key);
+                                  announceAction(
+                                      'Kehalusan kamera diubah ke ${e.value}');
+                                },
+                                child: AnimatedContainer(
+                                  duration:
+                                      const Duration(milliseconds: 150),
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 10),
+                                  decoration: BoxDecoration(
+                                    color: s.fps == e.key
+                                        ? C.purple
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Center(
+                                    child: Text(e.value,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                            color: s.fps == e.key
+                                                ? Colors.white
+                                                : C.ink,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 12)),
+                                  ),
                                 ),
                               ),
                             ),
@@ -493,26 +514,37 @@ class SettingsScreen extends StatelessWidget {
                     title: 'Bunyi ketukan',
                     sub: 'Ada bunyi "tik" untuk menjaga irama gerakan',
                     value: s.metronome,
-                    onChanged: (v) => s.update(() => s.metronome = v),
+                    onChanged: (v) {
+                      s.update(() => s.metronome = v);
+                      announceAction(v
+                          ? 'Bunyi ketukan diaktifkan'
+                          : 'Bunyi ketukan dimatikan');
+                    },
                   ),
                   _switchRow(
                     title: 'Suara pemandu',
                     sub: 'Ada suara yang memandu gerakan saat latihan',
                     value: s.voiceGuide,
-                    onChanged: (v) => s.update(() => s.voiceGuide = v),
+                    onChanged: (v) {
+                      s.update(() => s.voiceGuide = v);
+                      announceAction(v
+                          ? 'Suara pemandu diaktifkan'
+                          : 'Suara pemandu dimatikan');
+                    },
                   ),
                 ]),
                 const SizedBox(height: 12),
               ],
 
-              // === INFO SANGGAR (pelatih) ===
-              if (s.isPelatih) ...[
+              // === INFO SANGGAR (pelatih online saja) ===
+              if (showPelatihSection) ...[
                 if (s.currentSanggar == null)
                   _section('Sanggar', [
                     _tapRow(
                       title: 'Daftarkan Sanggar Baru',
                       trailing: 'Mulai',
                       onTap: () async {
+                        announceAction('Membuka halaman daftar sanggar');
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -553,9 +585,11 @@ class SettingsScreen extends StatelessWidget {
                         if (kode.isEmpty) return;
                         await Clipboard.setData(ClipboardData(text: kode));
                         if (!context.mounted) return;
+                        announceAction('Kode $kode disalin ke clipboard');
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                              content: Text('Kode "$kode" disalin ke clipboard')),
+                              content:
+                                  Text('Kode "$kode" disalin ke clipboard')),
                         );
                       },
                     ),
@@ -602,7 +636,8 @@ class SettingsScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              if (!s.isPelatih) ...[
+              // === HAPUS KEMAJUAN ===
+              if (showSiswaSection) ...[
                 SizedBox(
                   width: double.infinity,
                   child: TextButton.icon(
@@ -617,6 +652,8 @@ class SettingsScreen extends StatelessWidget {
                     label: const Text('Hapus Semua Kemajuan Latihan',
                         style: TextStyle(fontWeight: FontWeight.w700)),
                     onPressed: () async {
+                      announceAction(
+                          'Dialog konfirmasi hapus semua kemajuan terbuka');
                       final ok = await showDialog<bool>(
                         context: context,
                         builder: (_) => AlertDialog(
@@ -626,11 +663,13 @@ class SettingsScreen extends StatelessWidget {
                               style: TextStyle(
                                   fontWeight: FontWeight.w800, fontSize: 17)),
                           content: const Text(
-                              'Hari beruntun, poin (XP), lencana, dan variasi yang sudah selesai akan dihapus. Data yang sudah dihapus tidak bisa dikembalikan.'),
+                              'Hari beruntun, poin XP, lencana, dan variasi yang sudah selesai akan dihapus. Data yang sudah dihapus tidak bisa dikembalikan.'),
                           actions: [
                             TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(context, false),
+                                onPressed: () {
+                                  announceAction('Batal hapus');
+                                  Navigator.pop(context, false);
+                                },
                                 child: const Text('Batal')),
                             FilledButton(
                                 style: FilledButton.styleFrom(
@@ -641,61 +680,22 @@ class SettingsScreen extends StatelessWidget {
                           ],
                         ),
                       );
-                      if (ok == true) await s.resetProgress();
+                      if (ok == true) {
+                        await s.resetProgress();
+                        announceAction(
+                            'Semua kemajuan latihan sudah dihapus');
+                      }
                     },
                   ),
                 ),
                 const SizedBox(height: 12),
               ],
 
-              SizedBox(
-                width: double.infinity,
-                child: TextButton.icon(
-                  style: TextButton.styleFrom(
-                      foregroundColor: C.purple,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                              color: C.purple.withValues(alpha: .3)))),
-                  icon: const Icon(Icons.logout, size: 18),
-                  label: const Text('Keluar dari Akun',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  onPressed: () async {
-                    final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                        title: const Text('Keluar dari akun?',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 17)),
-                        content: const Text(
-                            'Data latihan kamu tetap tersimpan. Kamu bisa masuk lagi dengan nama yang sama.'),
-                        actions: [
-                          TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Batal')),
-                          FilledButton(
-                              style: FilledButton.styleFrom(
-                                  backgroundColor: C.purple),
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Keluar')),
-                        ],
-                      ),
-                    );
-                    if (ok == true) {
-                      await s.logout();
-                      if (!context.mounted) return;
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                            builder: (_) => const LoginScreen()),
-                        (_) => false,
-                      );
-                    }
-                  },
-                ),
-              ),
+              // === LOGOUT ATAU KEMBALI KE PILIHAN MODE ===
+              if (!s.isOffline && s.hasLoggedIn && AuthService.instance.isSignedIn)
+                _buildLogoutButton(context, s)
+              else
+                _buildBackToModeButton(context),
               const SizedBox(height: 16),
               const Text('Versi 1.0.0 • Bisa dipakai tanpa internet',
                   style: TextStyle(color: C.muted, fontSize: 12)),
@@ -704,6 +704,179 @@ class SettingsScreen extends StatelessWidget {
         ),
       ]),
     );
+  }
+
+  // ============================================================
+  // TOMBOL: KELUAR DARI AKUN
+  // ============================================================
+  Widget _buildLogoutButton(BuildContext context, AppState s) => SizedBox(
+        width: double.infinity,
+        child: TextButton.icon(
+          style: TextButton.styleFrom(
+              foregroundColor: C.purple,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                      color: C.purple.withValues(alpha: .3)))),
+          icon: const Icon(Icons.logout, size: 18),
+          label: const Text('Keluar dari Akun',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          onPressed: () async {
+            announceAction('Dialog konfirmasi keluar dari akun terbuka');
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                title: const Text('Keluar dari akun?',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 17)),
+                content: const Text(
+                    'Data latihan kamu tetap tersimpan. Kamu bisa masuk lagi dengan nama yang sama.'),
+                actions: [
+                  TextButton(
+                      onPressed: () {
+                        announceAction('Batal keluar');
+                        Navigator.pop(context, false);
+                      },
+                      child: const Text('Batal')),
+                  FilledButton(
+                      style: FilledButton.styleFrom(
+                          backgroundColor: C.purple),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Keluar')),
+                ],
+              ),
+            );
+            if (ok == true) {
+              await s.logout();
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                    builder: (_) => const ModeSelectionScreen()),
+                (_) => false,
+              );
+            }
+          },
+        ),
+      );
+
+  // ============================================================
+  // TOMBOL: KEMBALI KE PILIHAN MODE
+  // ============================================================
+  Widget _buildBackToModeButton(BuildContext context) => SizedBox(
+        width: double.infinity,
+        child: TextButton.icon(
+          style: TextButton.styleFrom(
+              foregroundColor: C.purple,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(
+                      color: C.purple.withValues(alpha: .3)))),
+          icon: const Icon(Icons.swap_horiz, size: 18),
+          label: const Text('Kembali ke Pilihan Mode',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          onPressed: () async {
+            announceAction(
+                'Kembali ke halaman pilih mode. Dialog konfirmasi terbuka');
+            final ok = await showDialog<bool>(
+              context: context,
+              builder: (_) => AlertDialog(
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20)),
+                title: const Text('Kembali ke pilihan mode?',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 17)),
+                content: const Text(
+                    'Kamu akan kembali ke halaman pilih mode Online atau Offline. Progres latihan tetap tersimpan di HP.'),
+                actions: [
+                  TextButton(
+                      onPressed: () {
+                        announceAction('Batal kembali ke pilihan mode');
+                        Navigator.pop(context, false);
+                      },
+                      child: const Text('Batal')),
+                  FilledButton(
+                      style: FilledButton.styleFrom(
+                          backgroundColor: C.purple),
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Kembali')),
+                ],
+              ),
+            );
+            if (ok == true) {
+              if (!context.mounted) return;
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                    builder: (_) => const ModeSelectionScreen()),
+                (_) => false,
+              );
+            }
+          },
+        ),
+      );
+
+  // ============================================================
+  // HANDLER GANTI MODE
+  // ============================================================
+  Future<void> _handleGantiMode(BuildContext context, AppState s) async {
+    final targetMode = s.isOffline ? 'Online' : 'Offline';
+    announceAction('Ganti ke Mode $targetMode. Dialog konfirmasi terbuka');
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Ganti ke Mode $targetMode?'),
+        content: Text(s.isOffline
+            ? 'Diperlukan internet untuk fitur online. Kalau belum login, kamu akan diminta login dulu.'
+            : 'Fitur online akan dinonaktifkan. Latihan tetap bisa dilakukan.'),
+        actions: [
+          TextButton(
+              onPressed: () {
+                announceAction('Batal ganti mode');
+                Navigator.pop(context, false);
+              },
+              child: const Text('Batal')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Ganti')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    if (!context.mounted) return;
+
+    final goOffline = !s.isOffline;
+
+    if (goOffline) {
+      await s.setUserMode('offline');
+      if (!context.mounted) return;
+      announceAction('Beralih ke Mode Offline');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Shell()),
+        (route) => false,
+      );
+      return;
+    }
+
+    // Offline → Online
+    if (AuthService.instance.isSignedIn) {
+      await s.setUserMode('online');
+      if (!context.mounted) return;
+      announceAction('Beralih ke Mode Online');
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const Shell()),
+        (route) => false,
+      );
+    } else {
+      announceAction('Membuka halaman login');
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
   }
 
   Widget _section(String title, List<Widget> children) => Container(
@@ -779,7 +952,7 @@ class SettingsScreen extends StatelessWidget {
 }
 
 // ============================================================
-// TEXT SCALE CARD — slider ukuran tulisan
+// TEXT SCALE CARD
 // ============================================================
 class _TextScaleCard extends StatelessWidget {
   final AppState s;
@@ -804,7 +977,6 @@ class _TextScaleCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header row: label + reset
         Row(
           children: [
             const Expanded(
@@ -819,7 +991,11 @@ class _TextScaleCard extends StatelessWidget {
                 color: Colors.transparent,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: () => s.update(() => s.textScale = 1.0),
+                  onTap: () {
+                    s.update(() => s.textScale = 1.0);
+                    announceAction(
+                        'Ukuran tulisan dikembalikan ke normal, seratus persen');
+                  },
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 8, vertical: 4),
@@ -843,8 +1019,6 @@ class _TextScaleCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-
-        // Preview box — teks akan otomatis ikut scale dari MaterialApp
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
@@ -890,11 +1064,8 @@ class _TextScaleCard extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-
-        // Slider
         Row(
           children: [
-            // Ikon A kecil
             Container(
               width: 30,
               height: 30,
@@ -927,10 +1098,14 @@ class _TextScaleCard extends StatelessWidget {
                   divisions: ((_max - _min) / 0.05).round(),
                   onChanged: (val) =>
                       s.update(() => s.textScale = val),
+                  onChangeEnd: (val) {
+                    final persen = (val * 100).round();
+                    announceAction(
+                        'Ukuran tulisan $persen persen, ${_label(val)}');
+                  },
                 ),
               ),
             ),
-            // Ikon A besar
             Container(
               width: 30,
               height: 30,
@@ -945,8 +1120,6 @@ class _TextScaleCard extends StatelessWidget {
             ),
           ],
         ),
-
-        // Labels kiri-kanan
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Row(
@@ -959,8 +1132,6 @@ class _TextScaleCard extends StatelessWidget {
             ],
           ),
         ),
-
-        // Kalau lowVision aktif, kasih hint
         if (s.lowVision) ...[
           const SizedBox(height: 12),
           Container(
@@ -976,7 +1147,7 @@ class _TextScaleCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Mode "Tulisan lebih tebal & kontras" juga aktif. '
+                    'Mode Tulisan lebih tebal dan kontras juga aktif. '
                     'Kamu bisa kombinasikan dengan ukuran di atas.',
                     style: TextStyle(
                         fontSize: 11, color: C.muted, height: 1.4),
@@ -1053,7 +1224,10 @@ class _AccessibilityTile extends StatelessWidget {
                 ),
               ),
               _InfoButton(
-                onTap: () => _showInfo(context),
+                onTap: () {
+                  announceAction('Penjelasan fitur ${opt.title} terbuka');
+                  _showInfo(context);
+                },
                 color: opt.color,
               ),
             ],
@@ -1114,7 +1288,10 @@ class _AccessibilityTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 24, vertical: 10),
               ),
-              onPressed: () => Navigator.pop(context),
+              onPressed: () {
+                announceAction('Dialog penjelasan ditutup');
+                Navigator.pop(context);
+              },
               child: const Text('Mengerti',
                   style: TextStyle(fontWeight: FontWeight.w700)),
             ),
@@ -1165,14 +1342,21 @@ class _CompactAccGrid extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        _CompactTile(s: s, opt: _accOptions[2]),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _CompactTile(s: s, opt: _accOptions[2]),
+            const SizedBox(width: 56),
+            _CompactTile(s: s, opt: _accOptions[3]),
+          ],
+        ),
         const SizedBox(height: 14),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _CompactTile(s: s, opt: _accOptions[3]),
-            const SizedBox(width: 56),
             _CompactTile(s: s, opt: _accOptions[4]),
+            const SizedBox(width: 56),
+            _CompactTile(s: s, opt: _accOptions[5]),
           ],
         ),
       ],
@@ -1193,7 +1377,11 @@ class _CompactTile extends StatelessWidget {
       toggled: active,
       label: '${opt.title}, ${active ? "aktif" : "nonaktif"}',
       child: GestureDetector(
-        onTap: () => _showCompactDetail(context, s, opt),
+        onTap: () {
+          announceAction(
+              'Membuka pengaturan ${opt.title}, ${active ? "sedang aktif" : "sedang nonaktif"}');
+          _showCompactDetail(context, s, opt);
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 240),
           curve: Curves.easeOutCubic,
@@ -1261,6 +1449,7 @@ class _CompactDetailSheet extends StatelessWidget {
       builder: (context, _) {
         final active = _isAccActive(s, opt.key);
         final showCbPicker = opt.key == 'colorBlind' && active;
+        final showTalkBack = opt.key == 'talkBack' && active;
         return SafeArea(
           top: false,
           child: Container(
@@ -1325,6 +1514,10 @@ class _CompactDetailSheet extends StatelessWidget {
                     const SizedBox(height: 16),
                     _ColorBlindTypePicker(s: s),
                   ],
+                  if (showTalkBack) ...[
+                    const SizedBox(height: 16),
+                    _TalkBackSettings(s: s),
+                  ],
                   const SizedBox(height: 20),
                   _ToggleButton(
                     value: active,
@@ -1337,6 +1530,226 @@ class _CompactDetailSheet extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ============================================================
+// TALK BACK SETTINGS
+// ============================================================
+class _TalkBackSettings extends StatelessWidget {
+  final AppState s;
+  const _TalkBackSettings({required this.s});
+
+  String _speedLabel(double v) {
+    if (v < 0.40) return 'Lambat';
+    if (v < 0.55) return 'Normal';
+    if (v < 0.68) return 'Cepat';
+    return 'Sangat cepat';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: C.bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: C.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune, size: 14, color: C.muted),
+              const SizedBox(width: 6),
+              const Text(
+                'Pengaturan suara',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: C.muted,
+                  letterSpacing: .3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (TtsService.instance.noIndonesianVoice) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                    Border.all(color: Colors.orange.withValues(alpha: .3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 18, color: Colors.orange),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Voice Bahasa Indonesia belum ada di HP ini. Buka '
+                      'Pengaturan HP → Language & input → Text-to-speech → '
+                      'Install voice data → pilih Bahasa Indonesia.',
+                      style: TextStyle(
+                          fontSize: 11, height: 1.4, color: Colors.black87),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            children: [
+              const Icon(Icons.speed, size: 16, color: Colors.indigo),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Kecepatan bicara',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12.5),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.indigo,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _speedLabel(s.talkBackSpeed),
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .3),
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              activeTrackColor: Colors.indigo,
+              inactiveTrackColor: C.line,
+              thumbColor: Colors.indigo,
+              overlayColor: Colors.indigo.withValues(alpha: .12),
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 10),
+              overlayShape:
+                  const RoundSliderOverlayShape(overlayRadius: 20),
+            ),
+            child: Slider(
+              value: s.talkBackSpeed,
+              min: 0.25,
+              max: 0.75,
+              divisions: 10,
+              onChanged: (v) => s.update(() => s.talkBackSpeed = v),
+              onChangeEnd: (v) {
+                final label = _speedLabel(v);
+                announceAction(
+                    'Kecepatan bicara diubah ke $label. Ini contoh suara pada kecepatan ini.');
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Lambat',
+                    style: TextStyle(fontSize: 10.5, color: C.muted)),
+                Text('Cepat',
+                    style: TextStyle(fontSize: 10.5, color: C.muted)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Icon(Icons.volume_up, size: 16, color: Colors.indigo),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Volume suara',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 12.5),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.indigo,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${(s.talkBackVolume * 100).round()}%',
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: .3),
+                ),
+              ),
+            ],
+          ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              activeTrackColor: Colors.indigo,
+              inactiveTrackColor: C.line,
+              thumbColor: Colors.indigo,
+              overlayColor: Colors.indigo.withValues(alpha: .12),
+              thumbShape:
+                  const RoundSliderThumbShape(enabledThumbRadius: 10),
+              overlayShape:
+                  const RoundSliderOverlayShape(overlayRadius: 20),
+            ),
+            child: Slider(
+              value: s.talkBackVolume,
+              min: 0.0,
+              max: 1.0,
+              divisions: 10,
+              onChanged: (v) => s.update(() => s.talkBackVolume = v),
+              onChangeEnd: (v) {
+                final persen = (v * 100).round();
+                announceAction('Volume suara diubah ke $persen persen');
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.indigo,
+                side: const BorderSide(color: Colors.indigo),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              onPressed: () {
+                TtsService.instance.speakNow(
+                  'Ini contoh suara. Latihan akan dipandu seperti ini.',
+                  force: true,
+                );
+              },
+              icon: const Icon(Icons.play_arrow, size: 18),
+              label: const Text(
+                'Tes suara',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1479,7 +1892,8 @@ class _PreviewCard extends StatelessWidget {
         !s.lowVision &&
         !s.reduceMotion &&
         !s.colorBlind &&
-        !s.focusMode;
+        !s.focusMode &&
+        !s.talkBack;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1617,7 +2031,11 @@ class _ColorBlindTypePicker extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(11),
-        onTap: () => s.update(() => s.colorBlindType = opt.key),
+        onTap: () {
+          s.update(() => s.colorBlindType = opt.key);
+          announceAction(
+              'Tipe buta warna ${opt.label} dipilih. ${opt.hint}');
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.all(11),

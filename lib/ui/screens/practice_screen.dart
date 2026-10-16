@@ -8,13 +8,14 @@ import 'package:flutter/services.dart';
 import '../../ai/ai_service.dart';
 import '../../ai/pose_match.dart';
 import '../data/saman_data.dart';
+import '../services/music_service.dart';
+import '../services/tts_service.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 
 enum _Phase { ready, move, rest, done }
 
-/// Snapshot terbaru untuk digambar (di-update tanpa setState seluruh layar).
 class _Live {
   final PoseFrame? frame;
   final MatchResult? result;
@@ -47,8 +48,8 @@ class PracticeScreen extends StatefulWidget {
 class _PracticeScreenState extends State<PracticeScreen>
     with WidgetsBindingObserver {
   static const int _miniTargetSec = 120;
-  static const int _readyHoldMs = 1500; // badan harus terdeteksi segini lama
-  static const int _skipAfterMs = 20000; // tombol "Lewati" muncul
+  static const int _readyHoldMs = 1500;
+  static const int _skipAfterMs = 20000;
 
   late final Variation v = samanVariations[widget.variationIndex];
   late final List<Move> moves = v.moves;
@@ -58,12 +59,12 @@ class _PracticeScreenState extends State<PracticeScreen>
   ];
 
   _Phase phase = _Phase.ready;
-  int idx = 0; // index gerakan
-  int kfIdx = 0; // index pose di dalam gerakan
+  int idx = 0;
+  int kfIdx = 0;
   late List<PoseKeyframe> kfs = keyframesFor(moves[0]);
   bool paused = false;
   bool showSkip = false;
-  int total = 0; // detik latihan berjalan
+  int total = 0;
   bool _wasBackgrounded = false;
 
   Timer? _clock;
@@ -73,12 +74,10 @@ class _PracticeScreenState extends State<PracticeScreen>
     const _Live(null, null, null, 0),
   );
 
-  // hasil per gerakan (null = belum)
   late List<double?> moveAcc = List<double?>.filled(moves.length, null);
   late List<bool> moveSkipped = List<bool>.filled(moves.length, false);
   final List<double> _kfScores = [];
 
-  // state penilaian
   double _smooth = 0;
   double _holdSum = 0;
   int _holdCnt = 0;
@@ -86,10 +85,16 @@ class _PracticeScreenState extends State<PracticeScreen>
   int? _visibleSince;
   int _kfStartMs = 0;
 
-  // mode 2 menit
   int _miniStep = 0;
   double _miniAccSum = 0;
   int _miniAccCnt = 0;
+
+  String? _lastSpokenHint;
+  int _lastHintMs = 0;
+
+  // ---- Countdown sebelum latihan ----
+  int _countdownLeft = 0;
+  bool _countdownRunning = false;
 
   Move get cur => moves[idx];
   bool get isLast => idx == moves.length - 1;
@@ -102,6 +107,20 @@ class _PracticeScreenState extends State<PracticeScreen>
     AiService.instance.pose.addListener(_onPose);
     _clock = Timer.periodic(const Duration(seconds: 1), (_) => _clockTick());
     _startAi();
+    MusicService.instance.init();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final mq = MediaQuery.maybeOf(context);
+      if (mq?.accessibleNavigation == true) return;
+      TtsService.instance.speakNow(
+        widget.mini
+            ? 'Mode pemanasan dua menit. Berdiri di depan kamera, '
+                'badan harus terlihat penuh.'
+            : 'Halaman Latihan. Variasi ${v.level.label}. ${moves.length} gerakan. '
+                'Berdiri di depan kamera, badan harus terlihat penuh.',
+      );
+    });
   }
 
   Future<void> _startAi() async {
@@ -115,8 +134,9 @@ class _PracticeScreenState extends State<PracticeScreen>
     _clock?.cancel();
     _restTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(TtsService.instance.stop());
+    unawaited(MusicService.instance.stop());
     super.dispose();
-    // Matikan kamera begitu keluar dari layar latihan.
     unawaited(AiService.instance.stop());
   }
 
@@ -124,6 +144,7 @@ class _PracticeScreenState extends State<PracticeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused && phase != _Phase.done) {
       _wasBackgrounded = true;
+      MusicService.instance.pause();
     }
     if (state == AppLifecycleState.resumed && _wasBackgrounded) {
       _wasBackgrounded = false;
@@ -145,9 +166,6 @@ class _PracticeScreenState extends State<PracticeScreen>
     );
   }
 
-  // ------------------------------------------------------------------
-  // Logika latihan
-  // ------------------------------------------------------------------
   PoseKeyframe _currentTarget() {
     if (widget.mini) {
       return phase == _Phase.ready
@@ -169,12 +187,14 @@ class _PracticeScreenState extends State<PracticeScreen>
         : null;
     final visible = r != null && r.bodyVisible;
 
-    if (!paused && phase != _Phase.done) {
+    if (!paused && phase != _Phase.done && !_countdownRunning) {
       switch (phase) {
         case _Phase.ready:
           if (visible) {
             _visibleSince ??= now;
-            if (now - _visibleSince! >= _readyHoldMs) _startMoves();
+            if (now - _visibleSince! >= _readyHoldMs) {
+              _startCountdown();
+            }
           } else {
             _visibleSince = null;
           }
@@ -208,7 +228,54 @@ class _PracticeScreenState extends State<PracticeScreen>
       }
     }
 
+    if (phase == _Phase.move && !paused) {
+      final hint = (r != null && r.bodyVisible) ? r.hint : null;
+      if (hint != null &&
+          hint != _lastSpokenHint &&
+          now - _lastHintMs > 2500) {
+        _lastSpokenHint = hint;
+        _lastHintMs = now;
+        TtsService.instance.speak(hint);
+      }
+    }
+
     if (mounted) _live.value = _Live(f, r, _currentTarget(), _smooth);
+  }
+
+  Future<void> _startCountdown() async {
+    if (_countdownRunning) return;
+    debugPrint('CD: start');
+    _countdownRunning = true;
+    setState(() => _countdownLeft = 5);
+    TtsService.instance.speakNow('Bersiap. Lima.');
+
+    for (var i = 4; i >= 1; i--) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted || phase != _Phase.ready) {
+        _countdownRunning = false;
+        return;
+      }
+      setState(() => _countdownLeft = i);
+      if (i == 4) {
+        TtsService.instance.speak('Empat.');
+      } else if (i == 3) {
+        TtsService.instance.speak('Tiga.');
+      } else if (i == 2) {
+        TtsService.instance.speak('Dua.');
+      } else if (i == 1) {
+        TtsService.instance.speak('Satu.');
+      }
+    }
+
+    await Future.delayed(const Duration(seconds: 1));
+    if (!mounted || phase != _Phase.ready) {
+      _countdownRunning = false;
+      return;
+    }
+    setState(() => _countdownLeft = 0);
+    _countdownRunning = false;
+    debugPrint('CD: finish, mulai latihan');
+    _startMoves();
   }
 
   void _startMoves() {
@@ -222,6 +289,15 @@ class _PracticeScreenState extends State<PracticeScreen>
       kfs = keyframesFor(moves[idx]);
       _miniStep = 0;
     });
+    if (widget.mini) {
+      TtsService.instance.speakNow('Pemanasan dimulai. Ikuti gerakan.');
+    } else {
+      final target = _currentTarget();
+      TtsService.instance.speakNow(
+        'Mulai. Gerakan satu: ${moves[0].name}. Pose: ${target.label}.',
+      );
+    }
+    MusicService.instance.play();
   }
 
   void _keyframeHit() {
@@ -238,6 +314,7 @@ class _PracticeScreenState extends State<PracticeScreen>
         kfIdx++;
         showSkip = false;
       });
+      TtsService.instance.speak('Bagus. Lanjut pose berikutnya.');
     } else {
       final acc = _kfScores.reduce((a, b) => a + b) / _kfScores.length;
       _completeMove(acc);
@@ -254,6 +331,19 @@ class _PracticeScreenState extends State<PracticeScreen>
     _holdSum = 0;
     _holdCnt = 0;
     _smooth = 0;
+    _lastSpokenHint = null;
+    _lastHintMs = 0;
+
+    if (!widget.mini) {
+      if (isLast) {
+        TtsService.instance.speakNow('Gerakan terakhir selesai.');
+      } else {
+        TtsService.instance.speakNow(
+          'Gerakan ${idx + 1} selesai. Siap ke gerakan berikutnya.',
+        );
+      }
+    }
+
     if (isLast) {
       _finish();
       return;
@@ -275,11 +365,15 @@ class _PracticeScreenState extends State<PracticeScreen>
       kfs = keyframesFor(moves[idx]);
       phase = _Phase.move;
     });
+    final target = _currentTarget();
+    TtsService.instance.speakNow(
+      'Gerakan ${idx + 1}: ${moves[idx].name}. Pose: ${target.label}.',
+    );
   }
 
   void _clockTick() {
     if (!mounted || paused || phase == _Phase.done) return;
-    _onPose(); // supaya status "tidak terdeteksi" tetap ter-update
+    _onPose();
     if (phase == _Phase.ready) return;
 
     if (phase == _Phase.move || phase == _Phase.rest) total++;
@@ -309,6 +403,8 @@ class _PracticeScreenState extends State<PracticeScreen>
 
   void _restart() {
     _restTimer?.cancel();
+    _countdownRunning = false;
+    _countdownLeft = 0;
     _kfScores.clear();
     _holdStart = null;
     _holdSum = 0;
@@ -318,6 +414,8 @@ class _PracticeScreenState extends State<PracticeScreen>
     _miniStep = 0;
     _miniAccSum = 0;
     _miniAccCnt = 0;
+    _lastSpokenHint = null;
+    _lastHintMs = 0;
     setState(() {
       phase = _Phase.ready;
       idx = 0;
@@ -329,6 +427,8 @@ class _PracticeScreenState extends State<PracticeScreen>
       moveAcc = List<double?>.filled(moves.length, null);
       moveSkipped = List<bool>.filled(moves.length, false);
     });
+    TtsService.instance.speakNow('Diulang dari awal. Bersiap.');
+    MusicService.instance.stop();
   }
 
   double _overallAcc() {
@@ -345,6 +445,7 @@ class _PracticeScreenState extends State<PracticeScreen>
     setState(() => phase = _Phase.done);
     _clock?.cancel();
     _restTimer?.cancel();
+    MusicService.instance.stop();
 
     final skipped = moveSkipped.any((e) => e);
     if (!skipped) {
@@ -356,6 +457,23 @@ class _PracticeScreenState extends State<PracticeScreen>
     if (!mounted) return;
     final s = AppState.instance;
     final overall = _overallAcc();
+
+    final accText = overall.toStringAsFixed(0);
+    if (skipped) {
+      TtsService.instance.speakNow(
+        'Latihan dihentikan. Ada gerakan yang dilewati, jadi belum '
+        'dihitung. Coba ulangi dari awal.',
+      );
+    } else {
+      TtsService.instance.speakNow(
+        widget.mini
+            ? 'Pemanasan selesai. Akurasi rata-rata $accText persen. '
+                'Streak kamu ${s.currentStreak} hari.'
+            : 'Latihan selesai. Akurasi rata-rata $accText persen. '
+                'Kerja bagus.',
+      );
+    }
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -421,6 +539,7 @@ class _PracticeScreenState extends State<PracticeScreen>
 
   Future<void> _confirmStop() async {
     setState(() => paused = true);
+    MusicService.instance.pause();
     final stop = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -449,14 +568,24 @@ class _PracticeScreenState extends State<PracticeScreen>
     );
     if (!mounted) return;
     if (stop == true) {
+      TtsService.instance.speakNow('Latihan dihentikan.');
+      MusicService.instance.stop();
       Navigator.pop(context, false);
     } else {
       setState(() => paused = false);
+      MusicService.instance.resume();
     }
   }
 
-  /// Tahan lama layar -> cetak sudut pose saat ini ke logcat,
-  /// supaya bisa disalin ke pose_match.dart sebagai pose acuan.
+  void _openMusicSettings(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const _MusicSettingsSheet(),
+    );
+  }
+
   void _printCalibration() {
     final ai = AiService.instance;
     final f = ai.pose.value;
@@ -481,9 +610,6 @@ class _PracticeScreenState extends State<PracticeScreen>
     snack('Pose tercetak di logcat (cari "KALIBRASI").');
   }
 
-  // ------------------------------------------------------------------
-  // UI
-  // ------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     final ai = AiService.instance;
@@ -500,8 +626,6 @@ class _PracticeScreenState extends State<PracticeScreen>
             fit: StackFit.expand,
             children: [
               _cameraLayer(),
-
-              // Skeleton target (putih) + skeleton badan user (berwarna)
               IgnorePointer(
                 child: RepaintBoundary(
                   child: CustomPaint(
@@ -513,17 +637,14 @@ class _PracticeScreenState extends State<PracticeScreen>
                   ),
                 ),
               ),
-
-              // Tahan lama = cetak kalibrasi
               Positioned.fill(
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onLongPress: _printCalibration,
                 ),
               ),
-
+              if (_countdownLeft > 0) _countdownOverlay(),
               SafeArea(child: Column(children: [_topBar(), const Spacer()])),
-
               Positioned(
                 left: 0,
                 right: 0,
@@ -549,13 +670,46 @@ class _PracticeScreenState extends State<PracticeScreen>
     );
   }
 
+  Widget _countdownOverlay() => Positioned.fill(
+        child: IgnorePointer(
+          child: Container(
+            color: Colors.black.withValues(alpha: .55),
+            alignment: Alignment.center,
+            child: Container(
+              width: 180,
+              height: 180,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                border: Border.all(color: C.orange, width: 6),
+                boxShadow: [
+                  BoxShadow(
+                    color: C.orange.withValues(alpha: .7),
+                    blurRadius: 40,
+                    spreadRadius: 8,
+                  ),
+                ],
+              ),
+              child: Text(
+                '$_countdownLeft',
+                style: TextStyle(
+                  color: C.orange,
+                  fontSize: 110,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
   Widget _cameraLayer() {
     final ai = AiService.instance;
     final c = ai.camera;
     if (ai.ready && c != null && c.value.isInitialized) {
       final ps = c.value.previewSize ?? const Size(720, 480);
-      // Ukuran preview dibalik (sensor landscape -> layar portrait) lalu di-"cover"
-      // supaya tidak gepeng.
       return ClipRect(
         child: FittedBox(
           fit: BoxFit.cover,
@@ -650,6 +804,15 @@ class _PracticeScreenState extends State<PracticeScreen>
           ),
         ),
         const SizedBox(width: 8),
+        IconButton.filled(
+          style: IconButton.styleFrom(
+            backgroundColor: Colors.black.withValues(alpha: .5),
+          ),
+          tooltip: 'Pengaturan musik',
+          onPressed: () => _openMusicSettings(context),
+          icon: const Icon(Icons.music_note, color: Colors.white, size: 20),
+        ),
+        const SizedBox(width: 8),
         ValueListenableBuilder<int>(
           valueListenable: AiService.instance.detectFps,
           builder: (_, fps, _) {
@@ -689,7 +852,6 @@ class _PracticeScreenState extends State<PracticeScreen>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header langkah
           Row(
             children: [
               Container(
@@ -753,7 +915,9 @@ class _PracticeScreenState extends State<PracticeScreen>
           const SizedBox(height: 2),
           Text(
             phase == _Phase.ready
-                ? 'Ikuti kerangka putih di layar'
+                ? (_countdownLeft > 0
+                    ? 'Bersiap dalam $_countdownLeft...'
+                    : 'Ikuti kerangka putih di layar')
                 : '▶ ${target.label}',
             style: const TextStyle(
               color: C.glowPurple,
@@ -772,12 +936,8 @@ class _PracticeScreenState extends State<PracticeScreen>
               ),
             ),
           const SizedBox(height: 10),
-
-          // Bar kecocokan LIVE
           _liveBar(),
           const SizedBox(height: 10),
-
-          // Bar hasil per gerakan
           if (!widget.mini)
             Row(
               children: [
@@ -793,7 +953,6 @@ class _PracticeScreenState extends State<PracticeScreen>
               ],
             ),
           if (!widget.mini) const SizedBox(height: 8),
-
           Row(
             children: [
               _legendDot(C.green, 'Bagus'),
@@ -831,7 +990,9 @@ class _PracticeScreenState extends State<PracticeScreen>
         hint = r?.hint ?? 'Badan belum terdeteksi, mundur sedikit';
         hintColor = C.orange;
       } else if (phase == _Phase.ready) {
-        hint = 'Terdeteksi ✓ Tahan sebentar, latihan segera dimulai';
+        hint = _countdownLeft > 0
+            ? 'Bersiap dalam $_countdownLeft...'
+            : 'Terdeteksi ✓ Tahan sebentar, latihan segera dimulai';
         hintColor = C.success;
       } else if (widget.mini) {
         hint = r.hint ?? '✓ Pas!';
@@ -870,7 +1031,6 @@ class _PracticeScreenState extends State<PracticeScreen>
                           ),
                         ),
                       ),
-                      // garis batas lolos (kuning)
                       Align(
                         alignment: Alignment(kPassScore / 100 * 2 - 1, 0),
                         child: Container(width: 2, color: Colors.white70),
@@ -995,7 +1155,14 @@ class _PracticeScreenState extends State<PracticeScreen>
         FloatingActionButton(
           backgroundColor: C.orange,
           elevation: 0,
-          onPressed: () => setState(() => paused = !paused),
+          onPressed: () {
+            setState(() => paused = !paused);
+            if (paused) {
+              MusicService.instance.pause();
+            } else {
+              MusicService.instance.resume();
+            }
+          },
           child: Icon(
             paused ? Icons.play_arrow : Icons.pause,
             color: Colors.white,
@@ -1013,7 +1180,225 @@ class _PracticeScreenState extends State<PracticeScreen>
 }
 
 // ===========================================================================
-// Painter: kerangka target (putih, tetap di layar) + kerangka badan user
+// Music Settings Sheet
+// ===========================================================================
+class _MusicSettingsSheet extends StatelessWidget {
+  const _MusicSettingsSheet();
+
+  static final Map<double, String> _rateOptions = {
+    0.5: 'Sangat lambat (0.5x)',
+    0.75: 'Lambat (0.75x)',
+    1.0: 'Normal (1x)',
+    1.25: 'Cepat (1.25x)',
+    1.5: 'Sangat cepat (1.5x)',
+    2.0: 'Ekstra cepat (2x)',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final s = AppState.instance;
+    return ListenableBuilder(
+      listenable: s,
+      builder: (context, _) => SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: C.line,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: C.purpleSoft,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(Icons.music_note,
+                          color: C.purple, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text('Musik Latihan',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: C.ink)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Nyalakan musik',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5)),
+                          SizedBox(height: 2),
+                          Text('Lagu akan diputar selama latihan',
+                              style: TextStyle(
+                                  fontSize: 11.5, color: C.muted)),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: s.musicOn,
+                      activeThumbColor: Colors.white,
+                      activeTrackColor: C.purple,
+                      onChanged: (v) {
+                        s.update(() => s.musicOn = v);
+                        if (v) {
+                          MusicService.instance.play();
+                        } else {
+                          MusicService.instance.pause();
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Text('Tempo musik',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 13.5)),
+                const SizedBox(height: 6),
+                const Text(
+                    'Pilih kecepatan lagu. Lambat untuk latihan pemula, cepat untuk mahir.',
+                    style: TextStyle(
+                        fontSize: 11.5, color: C.muted, height: 1.4)),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: C.bg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: C.line),
+                  ),
+                  child: DropdownButton<double>(
+                    value: s.musicRate,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    icon: const Icon(Icons.keyboard_arrow_down,
+                        color: C.muted),
+                    style: const TextStyle(
+                        fontSize: 13.5,
+                        color: C.ink,
+                        fontWeight: FontWeight.w600),
+                    items: _rateOptions.entries
+                        .map((e) => DropdownMenuItem<double>(
+                              value: e.key,
+                              child: Text(e.value),
+                            ))
+                        .toList(),
+                    onChanged: s.musicOn
+                        ? (v) {
+                            if (v == null) return;
+                            s.update(() => s.musicRate = v);
+                            MusicService.instance.setRate(v);
+                          }
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Volume musik',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 13.5)),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: C.purple,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${(s.musicVolume * 100).round()}%',
+                        style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: .3),
+                      ),
+                    ),
+                  ],
+                ),
+                SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    activeTrackColor: C.purple,
+                    inactiveTrackColor: C.line,
+                    thumbColor: C.purple,
+                    overlayColor: C.purple.withValues(alpha: .12),
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 10),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 20),
+                  ),
+                  child: Slider(
+                    value: s.musicVolume,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 10,
+                    onChanged: s.musicOn
+                        ? (v) {
+                            s.update(() => s.musicVolume = v);
+                            MusicService.instance.setVolume(v);
+                          }
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: C.purple,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Tutup',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ===========================================================================
+// Painter
 // ===========================================================================
 class _SkeletonPainter extends CustomPainter {
   final ValueNotifier<_Live> live;
@@ -1037,12 +1422,10 @@ class _SkeletonPainter extends CustomPainter {
     if (l.frame != null) _drawLive(canvas, size, l.frame!, l.result);
   }
 
-  // ---- target ----
   void _drawTarget(Canvas canvas, Size size, PoseKeyframe t) {
     final unit = size.width * 0.26;
     final origin = Offset(size.width / 2, size.height * 0.30);
     final p = templatePoints(t).map((e) => origin + e * unit).toList();
-    // 0 lSh,1 rSh,2 lEl,3 rEl,4 lWr,5 rWr,6 lHip,7 rHip,8 head
     const bones = [
       [0, 1],
       [0, 2],
@@ -1081,7 +1464,6 @@ class _SkeletonPainter extends CustomPainter {
     );
   }
 
-  // ---- badan user ----
   Offset _map(PoseFrame f, int i, Size s) {
     final sc = math.max(s.width / frame.width, s.height / frame.height);
     final dw = frame.width * sc, dh = frame.height * sc;
@@ -1091,7 +1473,6 @@ class _SkeletonPainter extends CustomPainter {
   }
 
   void _drawLive(Canvas canvas, Size size, PoseFrame f, MatchResult? r) {
-    // [a, b, index ruas yang dinilai atau -1]
     const bones = [
       [Lm.lSh, Lm.rSh, -1],
       [Lm.lSh, Lm.lEl, 0],
@@ -1156,7 +1537,6 @@ class _SkeletonPainter extends CustomPainter {
       );
     }
 
-    // Label umpan balik di dekat ruas yang paling meleset
     if (r != null && r.bodyVisible && r.hint != null && r.worst >= 0) {
       Offset at;
       if (r.worst == 4) {

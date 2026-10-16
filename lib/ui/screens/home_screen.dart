@@ -3,6 +3,7 @@ import '../data/saman_data.dart';
 import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/shell_animation.dart';
+import '../widgets/screen_announcer.dart';
 import 'notifications_screen.dart';
 import 'practice_screen.dart';
 import 'saman_detail_screen.dart';
@@ -57,47 +58,47 @@ class HomeScreen extends StatelessWidget {
                 child: Icon(Icons.self_improvement, color: Colors.white)),
             const SizedBox(width: 12),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('Hi, ${s.name}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800)),
-                  if (s.isOffline) ...[
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: C.orange,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text('OFFLINE',
-                          style: TextStyle(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text('Hi, ${s.name}',
+                          style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: .5)),
-                    ),
-                  ],
-                ]),
-                Text(
-                    s.practicedToday
-                        ? 'Latihan hari ini sudah beres ✔'
-                        : 'Yuk latihan hari ini',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: .7),
-                        fontSize: 12.5)),
-              ]),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800)),
+                      if (s.isOffline) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: C.orange,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('OFFLINE',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: .5)),
+                        ),
+                      ],
+                    ]),
+                    Text(
+                        s.practicedToday
+                            ? 'Latihan hari ini sudah beres ✔'
+                            : 'Yuk latihan hari ini',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: .7),
+                            fontSize: 12.5)),
+                  ]),
             ),
-            // Bell icon disembunyikan saat Mode Fokus (notifikasi = distraksi)
             if (!s.focusMode) _bellIcon(context),
           ]),
           const SizedBox(height: 16),
           Row(children: [
             Expanded(child: _searchBar(context)),
-            // Streak chip disembunyikan saat Mode Fokus
             if (!s.focusMode) ...[
               const SizedBox(width: 10),
               _streakChip(s),
@@ -107,8 +108,11 @@ class HomeScreen extends StatelessWidget {
       );
 
   Widget _bellIcon(BuildContext context) => GestureDetector(
-        onTap: () => Navigator.push(context,
-            MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+        onTap: () {
+          announceAction('Membuka halaman notifikasi');
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+        },
         child: Stack(children: [
           Container(
             padding: const EdgeInsets.all(10),
@@ -131,8 +135,11 @@ class HomeScreen extends StatelessWidget {
       );
 
   Widget _searchBar(BuildContext context) => GestureDetector(
-        onTap: () => Navigator.push(
-            context, MaterialPageRoute(builder: (_) => const SearchScreen())),
+        onTap: () {
+          announceAction('Membuka halaman pencarian');
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const SearchScreen()));
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -198,7 +205,6 @@ class HomeScreen extends StatelessWidget {
                     letterSpacing: 1)),
           ),
           const Spacer(),
-          // Progress counter disembunyikan saat Mode Fokus
           if (!s.focusMode)
             Text('${s.completed.length}/3',
                 style: const TextStyle(
@@ -239,10 +245,16 @@ class HomeScreen extends StatelessWidget {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16)),
                 elevation: 0),
-            onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => SamanDetailScreen(initial: next))),
+            onPressed: () {
+              final label =
+                  s.allDone ? 'Ulangi Latihan' : 'Lanjut Latihan';
+              announceAction(
+                  '$label. Membuka detail Variasi ${Level.values[next].label}');
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => SamanDetailScreen(initial: next)));
+            },
             icon: const Icon(Icons.play_arrow),
             label: Text(s.allDone ? 'Ulangi Latihan' : 'Lanjut Latihan',
                 style: const TextStyle(fontWeight: FontWeight.w800)),
@@ -260,11 +272,15 @@ class HomeScreen extends StatelessWidget {
             sub: 'Pemanasan cepat',
             color: C.purpleSoft,
             iconColor: C.purple,
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        PracticeScreen(variationIndex: 0, mini: true))),
+            onTap: () {
+              announceAction(
+                  'Mode Dua Menit dibuka. Latihan pemanasan selama dua menit');
+              Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) =>
+                          PracticeScreen(variationIndex: 0, mini: true)));
+            },
           ),
         ),
         const SizedBox(width: 12),
@@ -272,13 +288,15 @@ class HomeScreen extends StatelessWidget {
           child: _actionCard(
             icon: Icons.insights,
             label: 'Lihat Progress',
-            // Saat Mode Fokus, ganti XP/Level dengan teks netral
             sub: s.focusMode
                 ? 'Lihat hasil latihanmu'
                 : '${s.xp} XP • Lv ${s.level}',
             color: C.greenSoft,
             iconColor: C.green,
-            onTap: () => goTab(2),
+            onTap: () {
+              announceAction('Membuka tab Progress');
+              goTab(2);
+            },
           ),
         ),
       ]);
