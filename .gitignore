@@ -42,3 +42,9 @@ android/*.hprof
 
 # Backup files
 *.bak
+
+# File lokal (jangan commit)
+base64_temp.txt
+base_from_hp.apk
+*.apk
+verify_temp.keystore
