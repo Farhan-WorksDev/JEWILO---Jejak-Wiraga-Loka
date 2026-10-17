@@ -1,8 +1,18 @@
-﻿plugins {
+﻿import java.util.Properties
+import java.io.FileInputStream
+
+plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+}
+
+// Load key.properties
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -31,11 +41,19 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             isShrinkResources = false
         }
@@ -49,25 +67,19 @@ kotlin {
 }
 
 dependencies {
-    // Firebase BOM â€” biar versi Firebase konsisten
     implementation(platform("com.google.firebase:firebase-bom:34.0.0"))
 
-    // Firebase packages
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-messaging")
 
-    // MediaPipe â€” pake versi stabil yang gak konflik protobuf
     implementation("com.google.mediapipe:tasks-vision:0.10.14")
-
-    // Force protobuf ke versi kompatibel (javalite, bukan java)
     implementation("com.google.protobuf:protobuf-javalite:3.21.12")
 
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
-// Force ALL protobuf variants ke satu versi â€” fix NoSuchMethodError
 configurations.all {
     resolutionStrategy {
         force("com.google.protobuf:protobuf-java:3.21.12")

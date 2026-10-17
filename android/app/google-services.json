@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "840587110754-2grrbpcl3shcl17d1bi46g363msjl2g3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.tari_app",
+            "certificate_hash": "9c911f2474ed62d4c99005ac9a280eb4d3af938f"
+          }
+        },
+        {
           "client_id": "840587110754-5dui6brvgjm9ko09m0e0q0l0230t1e31.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
